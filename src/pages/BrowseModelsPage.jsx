@@ -14,6 +14,8 @@ export const BrowseModelsPage = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState(null);
   const [sortBy, setSortBy] = useState('newest');
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 12;
 
   // Fetch all models
   useEffect(() => {
@@ -62,6 +64,21 @@ export const BrowseModelsPage = () => {
   // Get unique categories
   const categories = [...new Set(models.map(m => m.category))].sort();
 
+  // Pagination logic
+  const totalPages = Math.ceil(filteredModels.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedModels = filteredModels.slice(startIndex, startIndex + itemsPerPage);
+
+  // Ensure current page is valid
+  if (currentPage > totalPages && totalPages > 0) {
+    setCurrentPage(1);
+  }
+
+  const handlePageChange = (page) => {
+    setCurrentPage(page);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const filterOptions = [
     {
       id: 'category',
@@ -90,6 +107,7 @@ export const BrowseModelsPage = () => {
     } else if (filterId === 'sort') {
       setSortBy(value);
     }
+    setCurrentPage(1); // Reset to first page when filters change
   };
 
   return (
@@ -133,7 +151,7 @@ export const BrowseModelsPage = () => {
 
       {/* Results count */}
       <div className="text-sm text-slate-600">
-        Showing {filteredModels.length} {filteredModels.length === 1 ? 'model' : 'models'}
+        Showing {paginatedModels.length > 0 ? startIndex + 1 : 0} – {Math.min(startIndex + itemsPerPage, filteredModels.length)} of {filteredModels.length} {filteredModels.length === 1 ? 'model' : 'models'}
       </div>
 
       {/* Models Grid */}
@@ -143,12 +161,87 @@ export const BrowseModelsPage = () => {
             <LoadingCard key={i} />
           ))}
         </div>
-      ) : filteredModels.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredModels.map((model) => (
-            <ModelCard key={model.id} model={model} />
-          ))}
-        </div>
+      ) : paginatedModels.length > 0 ? (
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {paginatedModels.map((model) => (
+              <ModelCard key={model.id} model={model} />
+            ))}
+          </div>
+
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-2 mt-8">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage === 1}
+              >
+                Previous
+              </Button>
+
+              <div className="flex items-center gap-1">
+                {[...Array(totalPages)].map((_, i) => {
+                  const pageNum = i + 1;
+                  // Show all pages if 5 or fewer, otherwise show with ellipsis
+                  if (totalPages <= 5) {
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => handlePageChange(pageNum)}
+                        className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
+                          currentPage === pageNum
+                            ? 'bg-primary-600 text-black'
+                            : 'bg-slate-200 text-slate-900 hover:bg-slate-300'
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  }
+
+                  // Show first, last, and nearby pages with ellipsis
+                  if (pageNum === 1 || pageNum === totalPages || Math.abs(pageNum - currentPage) <= 1) {
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => handlePageChange(pageNum)}
+                        className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
+                          currentPage === pageNum
+                            ? 'bg-primary-600 text-black'
+                            : 'bg-slate-200 text-slate-900 hover:bg-slate-300'
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  }
+
+                  // Show ellipsis
+                  if (pageNum === 2 || pageNum === totalPages - 1) {
+                    return (
+                      <span key={`ellipsis-${pageNum}`} className="px-2 text-slate-600">
+                        ...
+                      </span>
+                    );
+                  }
+
+                  return null;
+                })}
+              </div>
+
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage === totalPages}
+              >
+                Next
+              </Button>
+            </div>
+          )}
+        </>
       ) : (
         <EmptyState
           title={searchQuery || categoryFilter ? "No models found" : "No models available"}

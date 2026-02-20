@@ -63,5 +63,16 @@ export const ApiService = {
     // Note: ensure this matches your Python API path (version vs versions)
     const response = await api.patch(`/models/${modelId}/version/${versionId}`, data);
     return response.data;
+  },
+
+  // --- HUGGING FACE ---
+  searchHuggingFace: async (query) => {
+    const response = await api.get("/search/huggingface", { params: { query } });
+    return response.data;
+  },
+
+  importFromHuggingFace: async (hfId) => {
+    const response = await api.post("/import/huggingface", { hf_id: hfId });
+    return response.data;
   }
 };
