@@ -3,8 +3,9 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ApiService } from '../api/client';
 import Button from '../components/Button';
 import Badge from '../components/Badge';
+import PipelineConfigViewer from '../components/PipelineConfigViewer';
+import { PipelineConfigWizard } from '../components/PipelineConfigWizard';
 import { 
-  ArrowDownTrayIcon, 
   StarIcon as StarOutlineIcon,
   CheckCircleIcon,
   ExclamationTriangleIcon,
@@ -23,67 +24,64 @@ export const ModelDetailPage = () => {
   const [versions, setVersions] = useState([]);
   const [selectedVersionIdx, setSelectedVersionIdx] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [downloading, setDownloading] = useState(false);
+  const [showPipelineEditor, setShowPipelineEditor] = useState(false);
+  const [savingPipeline, setSavingPipeline] = useState(false);
 
   useEffect(() => {
     // Fetch single model and its versions
-    Promise.all([
-      ApiService.getModels(),
-      // In a real app, you'd have an endpoint to get versions for a model
-      // For now, we'll simulate it
-      Promise.resolve([])
-    ])
-      .then(([models, fetchedVersions]) => {
+    const fetchData = async () => {
+      try {
+        const [models, fetchedVersions] = await Promise.all([
+          ApiService.getModels(),
+          ApiService.getModelVersions(id)
+        ]);
+        
         const found = models.find(m => m.id.toString() === id);
         if (found) {
           setModel(found);
-          // Simulate fetching versions - in reality this would come from API
-          setVersions([
-            {
-              id: 'v1-' + found.id,
-              version_string: '1.0.0',
-              changelog: 'Initial release based on official model weights.',
-              published_at: new Date().toISOString(),
-              download_count: 234,
-              num_ratings: 12,
-              rating_avg: 4.5,
-              assets: found.hf_model_id ? [
-                {
-                  asset_key: 'model_file',
-                  asset_type: 'tflite',
-                  source_url: `https://huggingface.co/${found.hf_model_id}/resolve/main/model.tflite`,
-                  file_size_bytes: 14000000,
-                  file_hash: 'sha256:...',
-                  is_hosted_by_us: false
-                }
-              ] : [],
-              pipeline_spec: {
-                input_nodes: ['input'],
-                output_nodes: ['output'],
-                pre_processing: [],
-                post_processing: []
-              },
-              verified_inference: true,
-              verification_date: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
-            }
-          ]);
+          setVersions(Array.isArray(fetchedVersions) ? fetchedVersions : []);
+        } else {
+          setModel(null);
+          setVersions([]);
         }
-      })
-      .catch(err => console.error("Failed to load model:", err))
-      .finally(() => setLoading(false));
+      } catch (err) {
+        console.error("Failed to load model:", err);
+        setModel(null);
+        setVersions([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchData();
   }, [id]);
 
-  const handleDownload = async (version) => {
-    setDownloading(true);
+  const handleSavePipelineConfig = async (config) => {
+    setSavingPipeline(true);
     try {
-      // Get the model file asset
-      const modelAsset = version.assets.find(a => a.asset_type === 'tflite');
-      if (modelAsset) {
-        // In a real app, this would trigger a download from the source_url
-        window.open(modelAsset.source_url, '_blank');
-      }
+      const selectedVersion = versions[selectedVersionIdx];
+      // Call API to update the version with new pipeline spec
+      // await ApiService.updateModelVersion(selectedVersion.id, {
+      //   pipeline_spec: config,
+      //   status: 'configured'
+      // });
+      
+      // Update local state
+      const updatedVersions = [...versions];
+      updatedVersions[selectedVersionIdx] = {
+        ...selectedVersion,
+        pipeline_spec: config,
+        status: 'configured'
+      };
+      setVersions(updatedVersions);
+      setShowPipelineEditor(false);
+      
+      // Show success message (you may want to add toast notifications)
+      console.log('Pipeline configuration saved successfully');
+    } catch (error) {
+      console.error('Failed to save pipeline configuration:', error);
     } finally {
-      setDownloading(false);
+      setSavingPipeline(false);
     }
   };
 
@@ -259,12 +257,12 @@ export const ModelDetailPage = () => {
               >
                 <div className="flex items-start justify-between mb-2">
                   <div>
-                    <h3 className="font-semibold text-slate-900">v{version.version_string}</h3>
+                    <h3 className="font-semibold text-slate-900">v{version.version_name || version.version_string}</h3>
                     <p className="text-xs text-slate-500 mt-1">
                       {new Date(version.published_at).toLocaleDateString()}
                     </p>
                   </div>
-                  {version.verified_inference && (
+                  {version.is_supported && (
                     <CheckBadgeIcon className="h-5 w-5 text-accent-lime flex-shrink-0" />
                   )}
                 </div>
@@ -291,7 +289,7 @@ export const ModelDetailPage = () => {
               <div className="border-b border-slate-200 pb-6">
                 <div className="flex items-start justify-between mb-4">
                   <div>
-                    <h3 className="text-2xl font-bold text-slate-900">Version {selectedVersion.version_string}</h3>
+                    <h3 className="text-2xl font-bold text-slate-900">Version {selectedVersion.version_name || selectedVersion.version_string}</h3>
                     <p className="text-slate-600 text-sm mt-2">
                       Released {new Date(selectedVersion.published_at).toLocaleDateString()}
                     </p>
@@ -306,31 +304,37 @@ export const ModelDetailPage = () => {
                 )}
               </div>
 
-              {/* Verification Status */}
+              {/* Pipeline Configuration */}
+              {selectedVersion && (
+                <div>
+                  <PipelineConfigViewer
+                    pipelineSpec={selectedVersion.pipeline_spec}
+                    onEdit={() => setShowPipelineEditor(true)}
+                    isEditable={true}
+                  />
+                </div>
+              )}
+
+              {/* Pipeline Verification Status */}
               <div>
-                <h3 className="text-lg font-bold text-slate-900 mb-4">Verification Status</h3>
-                {selectedVersion.verified_inference ? (
+                <h3 className="text-lg font-bold text-slate-900 mb-4">Pipeline Verification</h3>
+                {selectedVersion.is_supported ? (
                   <div className="p-4 bg-green-50 border border-green-200 rounded-lg flex items-start gap-3">
                     <CheckCircleIcon className="h-6 w-6 text-accent-lime flex-shrink-0 mt-0.5" />
                     <div>
-                      <h4 className="font-semibold text-green-900">Verified for Inference</h4>
+                      <h4 className="font-semibold text-green-900">Pipeline Verified</h4>
                       <p className="text-sm text-green-800 mt-1">
-                        This version has been tested and verified to produce successful inference results.
+                        This model version has a verified pipeline configuration.
                       </p>
-                      {selectedVersion.verification_date && (
-                        <p className="text-xs text-green-700 mt-2">
-                          Verified on {new Date(selectedVersion.verification_date).toLocaleDateString()}
-                        </p>
-                      )}
                     </div>
                   </div>
                 ) : (
-                  <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg flex items-start gap-3">
-                    <ExclamationTriangleIcon className="h-6 w-6 text-yellow-600 flex-shrink-0 mt-0.5" />
+                  <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
+                    <ExclamationTriangleIcon className="h-6 w-6 text-red-600 flex-shrink-0 mt-0.5" />
                     <div>
-                      <h4 className="font-semibold text-yellow-900">Pending Verification</h4>
-                      <p className="text-sm text-yellow-800 mt-1">
-                        This version has not yet been verified for inference. Use with caution.
+                      <h4 className="font-semibold text-red-900">Pipeline Not Verified</h4>
+                      <p className="text-sm text-red-800 mt-1">
+                        {selectedVersion.unsupported_reason || "This model version does not have a verified pipeline configuration."}
                       </p>
                     </div>
                   </div>
@@ -338,7 +342,7 @@ export const ModelDetailPage = () => {
               </div>
 
               {/* Version Stats */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="p-4 bg-slate-50 rounded-lg">
                   <p className="text-sm text-slate-600 mb-2">Downloads</p>
                   <p className="text-2xl font-bold text-slate-900">{selectedVersion.download_count}</p>
@@ -361,71 +365,34 @@ export const ModelDetailPage = () => {
                   </div>
                   <p className="text-xs text-slate-600 mt-1">({selectedVersion.num_ratings} ratings)</p>
                 </div>
-                <div className="p-4 bg-slate-50 rounded-lg">
-                  <p className="text-sm text-slate-600 mb-2">Asset Count</p>
-                  <p className="text-2xl font-bold text-slate-900">{selectedVersion.assets.length}</p>
-                  <p className="text-xs text-slate-600 mt-1">file{selectedVersion.assets.length !== 1 ? 's' : ''}</p>
-                </div>
               </div>
 
-              {/* Assets */}
-              {selectedVersion.assets.length > 0 && (
-                <div>
-                  <h3 className="text-lg font-bold text-slate-900 mb-4">Assets</h3>
-                  <div className="space-y-3">
-                    {selectedVersion.assets.map((asset, idx) => (
-                      <div key={idx} className="p-4 border border-slate-200 rounded-lg">
-                        <div className="flex items-start justify-between mb-3">
-                          <div>
-                            <h4 className="font-medium text-slate-900">{asset.asset_key}</h4>
-                            <p className="text-xs text-slate-500 mt-1">Type: {asset.asset_type}</p>
-                          </div>
-                          {asset.is_hosted_by_us ? (
-                            <span className="px-2 py-1 bg-primary-100 text-primary-700 text-xs font-medium rounded">
-                              Hosted
-                            </span>
-                          ) : (
-                            <span className="px-2 py-1 bg-slate-100 text-slate-700 text-xs font-medium rounded">
-                              External
-                            </span>
-                          )}
-                        </div>
-                        <a
-                          href={asset.source_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-primary-600 text-sm hover:text-primary-700 break-all flex items-center gap-2 group"
-                        >
-                          <LinkIcon className="h-4 w-4 flex-shrink-0 group-hover:translate-x-0.5 transition-transform" />
-                          {asset.source_url}
-                        </a>
-                        {asset.file_size_bytes > 0 && (
-                          <p className="text-xs text-slate-600 mt-2">
-                            Size: {(asset.file_size_bytes / (1024 * 1024)).toFixed(2)} MB
-                          </p>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Download Button */}
-              <div className="border-t border-slate-200 pt-6">
-                <Button
-                  variant="primary"
-                  size="lg"
-                  className="w-full justify-center gap-2"
-                  onClick={() => handleDownload(selectedVersion)}
-                  isLoading={downloading}
-                >
-                  <ArrowDownTrayIcon className="h-5 w-5" />
-                  Download Version {selectedVersion.version_string}
-                </Button>
+              {/* Download and Config Buttons */}
+              <div className="border-t border-slate-200 pt-6 flex gap-3">
+                {selectedVersion.status === 'unconfigured' && (
+                  <Button
+                    variant="primary"
+                    size="lg"
+                    className="flex-1 justify-center gap-2"
+                    onClick={() => setShowPipelineEditor(true)}
+                  >
+                    <SparklesIcon className="h-5 w-5" />
+                    Create Configuration
+                  </Button>
+                )}
               </div>
             </div>
           )}
         </div>
+      )}
+
+      {/* Pipeline Configuration Wizard Modal */}
+      {showPipelineEditor && (
+        <PipelineConfigWizard
+          initialConfig={versions[selectedVersionIdx]?.pipeline_spec}
+          onSave={handleSavePipelineConfig}
+          onCancel={() => setShowPipelineEditor(false)}
+        />
       )}
     </div>
   );

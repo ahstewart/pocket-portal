@@ -1,10 +1,11 @@
 // src/api/client.js
 import axios from 'axios';
 
-const API_URL = "http://127.0.0.1:8000";
+// The base URL now explicitly includes the /api/v1 prefix
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
 
 const api = axios.create({
-  baseURL: API_URL,
+  baseURL: API_BASE_URL,
   headers: {
     "Content-Type": "application/json",
   },

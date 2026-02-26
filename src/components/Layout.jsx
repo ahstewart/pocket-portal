@@ -1,7 +1,7 @@
 // src/components/Layout.jsx
 import React, { useState } from 'react';
 import { Link, useLocation, useNavigate, Outlet } from 'react-router-dom';
-import { ArrowLeftIcon, PlusIcon, Bars3Icon, XMarkIcon, UserIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, Bars3Icon, XMarkIcon, UserIcon } from '@heroicons/react/24/outline';
 import Button from './Button';
 import { useAuth } from '../lib/authContext';
 
@@ -11,9 +11,6 @@ export const Layout = ({ children }) => {
   const { user, signOut } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
-
-  // Helper: Only show "Back" button if we are NOT on the home page
-  const showBackButton = location.pathname !== '/';
 
   // Navigation links
   const navLinks = [
@@ -43,18 +40,8 @@ export const Layout = ({ children }) => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             
-            {/* Left Side: Back button + Logo */}
+            {/* Left Side: Logo */}
             <div className="flex items-center gap-3 flex-1">
-              {showBackButton && (
-                <button 
-                  onClick={() => navigate(-1)}
-                  className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-600 hover:text-slate-900 transition-all duration-200 hidden sm:block"
-                  title="Go Back"
-                >
-                  <ArrowLeftIcon className="h-5 w-5" />
-                </button>
-              )}
-              
               <Link to="/" className="flex items-center gap-2 group">
                 <div className="bg-gradient-to-br from-primary-500 to-primary-700 w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-sm shadow-md-soft group-hover:shadow-lg-soft transition-all duration-200 group-hover:scale-105">
                   P
