@@ -14,12 +14,13 @@ export const Layout = ({ children }) => {
 
   // Navigation links
   const navLinks = [
-    { label: 'Browse', path: '/browse', exact: false },
+    { label: 'Home', path: '/', exact: true },
+    { label: 'Browse Models', path: '/browse', exact: false },
     ...(user ? [{ label: 'Dashboard', path: '/dashboard', exact: false }] : []),
   ];
 
-  const isActive = (path) => {
-    if (path === '/') return location.pathname === '/';
+  const isActive = (path, exact) => {
+    if (exact || path === '/') return location.pathname === path;
     return location.pathname.startsWith(path);
   };
 
@@ -43,7 +44,7 @@ export const Layout = ({ children }) => {
             {/* Left Side: Logo */}
             <div className="flex items-center gap-3 flex-1">
               <Link to="/" className="flex items-center gap-2 group">
-                <div className="bg-gradient-to-br from-primary-500 to-primary-700 w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-sm shadow-md-soft group-hover:shadow-lg-soft transition-all duration-200 group-hover:scale-105">
+                <div className="bg-gradient-to-br from-primary-500 to-secondary-600 w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-sm shadow-md-soft group-hover:shadow-lg-soft transition-all duration-200 group-hover:scale-105">
                   P
                 </div>
                 <span className="font-bold text-lg tracking-tight text-slate-900 hidden sm:inline">Pocket <span className="text-primary-600">AI</span></span>
@@ -57,7 +58,7 @@ export const Layout = ({ children }) => {
                   key={link.path}
                   to={link.path}
                   className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                    isActive(link.path)
+                    isActive(link.path, link.exact)
                       ? 'text-primary-600 bg-primary-50'
                       : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                   }`}
@@ -162,7 +163,7 @@ export const Layout = ({ children }) => {
                   to={link.path}
                   onClick={() => setMobileMenuOpen(false)}
                   className={`block px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                    isActive(link.path)
+                    isActive(link.path, link.exact)
                       ? 'text-primary-600 bg-primary-50'
                       : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                   }`}
@@ -210,36 +211,36 @@ export const Layout = ({ children }) => {
       </main>
 
       {/* FOOTER */}
-      <footer className="border-t border-slate-200 bg-white mt-12">
+      <footer className="bg-slate-900 mt-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div>
               <div className="flex items-center gap-2 mb-3">
-                <div className="bg-gradient-to-br from-primary-500 to-primary-700 w-6 h-6 rounded-lg flex items-center justify-center text-white font-bold text-xs">
+                <div className="bg-gradient-to-br from-primary-500 to-secondary-600 w-6 h-6 rounded-lg flex items-center justify-center text-white font-bold text-xs">
                   P
                 </div>
-                <span className="font-bold text-slate-900">Pocket AI</span>
+                <span className="font-bold text-white">Pocket AI</span>
               </div>
-              <p className="text-sm text-slate-600">Download and run mobile-optimized AI models.</p>
+              <p className="text-sm text-slate-400">Download and run mobile-optimized AI models.</p>
             </div>
             <div>
-              <h4 className="font-semibold text-slate-900 mb-3">Navigation</h4>
+              <h4 className="font-semibold text-white mb-3">Navigation</h4>
               <ul className="space-y-2 text-sm">
-                <li><Link to="/" className="text-slate-600 hover:text-slate-900 transition">Home</Link></li>
-                <li><Link to="/browse" className="text-slate-600 hover:text-slate-900 transition">Browse Models</Link></li>
-                {user && <li><Link to="/dashboard" className="text-slate-600 hover:text-slate-900 transition">Dashboard</Link></li>}
+                <li><Link to="/" className="text-slate-400 hover:text-white transition">Home</Link></li>
+                <li><Link to="/browse" className="text-slate-400 hover:text-white transition">Browse Models</Link></li>
+                {user && <li><Link to="/dashboard" className="text-slate-400 hover:text-white transition">Dashboard</Link></li>}
               </ul>
             </div>
             <div>
-              <h4 className="font-semibold text-slate-900 mb-3">About</h4>
-              <p className="text-sm text-slate-600">A platform for sharing and discovering mobile-optimized AI models for edge devices.</p>
+              <h4 className="font-semibold text-white mb-3">About</h4>
+              <p className="text-sm text-slate-400">A platform for sharing and discovering mobile-optimized AI models for edge devices.</p>
             </div>
           </div>
-          <div className="border-t border-slate-200 mt-8 pt-8 flex justify-between items-center">
-            <p className="text-sm text-slate-600">© 2026 Pocket AI. All rights reserved.</p>
+          <div className="border-t border-slate-700 mt-8 pt-8 flex justify-between items-center">
+            <p className="text-sm text-slate-400">© 2026 Pocket AI. All rights reserved.</p>
             <div className="flex gap-6 text-sm">
-              <a href="#" className="text-slate-600 hover:text-slate-900 transition">Privacy</a>
-              <a href="#" className="text-slate-600 hover:text-slate-900 transition">Terms</a>
+              <a href="#" className="text-slate-400 hover:text-white transition">Privacy</a>
+              <a href="#" className="text-slate-400 hover:text-white transition">Terms</a>
             </div>
           </div>
         </div>

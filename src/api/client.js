@@ -1,5 +1,6 @@
 // src/api/client.js
 import axios from 'axios';
+import { supabase } from '../lib/supabase';
 
 // The base URL now explicitly includes the /api/v1 prefix
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
@@ -11,14 +12,19 @@ const api = axios.create({
   },
 });
 
-// Helper to inject Token (Call this on app load or login)
-export const setAuthToken = (token) => {
-  if (token) {
-    api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-  } else {
-    delete api.defaults.headers.common["Authorization"];
+// Always attach the current Supabase session token before each request.
+// Supabase auto-refreshes expired tokens, so this stays fresh without any
+// manual setAuthToken calls.
+api.interceptors.request.use(async (config) => {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session?.access_token) {
+    config.headers["Authorization"] = `Bearer ${session.access_token}`;
   }
-};
+  return config;
+});
+
+// Keep setAuthToken as a no-op so existing call sites don't break.
+export const setAuthToken = (_token) => {};
 
 export const ApiService = {
   // --- USERS ---
@@ -75,5 +81,10 @@ export const ApiService = {
   importFromHuggingFace: async (hfId) => {
     const response = await api.post("/import/huggingface", { hf_id: hfId });
     return response.data;
-  }
+  },
+
+  generatePipeline: async (versionId) => {
+    const response = await api.post(`/versions/${versionId}/generate-pipeline`);
+    return response.data;
+  },
 };

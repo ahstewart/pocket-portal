@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ApiService } from '../api/client';
 import Button from '../components/Button';
 import Badge from '../components/Badge';
 import PipelineConfigViewer from '../components/PipelineConfigViewer';
 import { PipelineConfigWizard } from '../components/PipelineConfigWizard';
-import { 
+import {
   StarIcon as StarOutlineIcon,
   CheckCircleIcon,
   ExclamationTriangleIcon,
@@ -13,7 +13,10 @@ import {
   CodeBracketIcon,
   LinkIcon,
   SparklesIcon,
-  CheckBadgeIcon
+  CheckBadgeIcon,
+  ChevronRightIcon,
+  ArrowPathIcon,
+  ArrowLeftIcon,
 } from '@heroicons/react/24/outline';
 import { StarIcon as StarSolidIcon } from '@heroicons/react/24/solid';
 
@@ -26,6 +29,8 @@ export const ModelDetailPage = () => {
   const [loading, setLoading] = useState(true);
   const [showPipelineEditor, setShowPipelineEditor] = useState(false);
   const [savingPipeline, setSavingPipeline] = useState(false);
+  const [generatingPipeline, setGeneratingPipeline] = useState(false);
+  const [generateError, setGenerateError] = useState(null);
 
   useEffect(() => {
     // Fetch single model and its versions
@@ -55,6 +60,21 @@ export const ModelDetailPage = () => {
     
     fetchData();
   }, [id]);
+
+  const handleGeneratePipeline = async () => {
+    setGeneratingPipeline(true);
+    setGenerateError(null);
+    try {
+      const updatedVersion = await ApiService.generatePipeline(versions[selectedVersionIdx].id);
+      const updatedVersions = [...versions];
+      updatedVersions[selectedVersionIdx] = updatedVersion;
+      setVersions(updatedVersions);
+    } catch (err) {
+      setGenerateError(err.response?.data?.detail || 'Generation failed. Check server logs.');
+    } finally {
+      setGeneratingPipeline(false);
+    }
+  };
 
   const handleSavePipelineConfig = async (config) => {
     setSavingPipeline(true);
@@ -115,9 +135,18 @@ export const ModelDetailPage = () => {
     <div className="max-w-5xl mx-auto space-y-8">
       {/* Header Section */}
       <div>
-        <Button variant="tertiary" size="sm" onClick={() => navigate(-1)} className="mb-4">
-          ← Back
+        <Button variant="outline" size="sm" onClick={() => navigate('/browse')} className="mb-4 self-start">
+          <ArrowLeftIcon className="h-4 w-4" />
+          Back to Browse
         </Button>
+
+        <nav className="flex items-center gap-1.5 text-sm text-slate-500 mb-6">
+          <Link to="/" className="hover:text-primary-600 transition-colors">Home</Link>
+          <ChevronRightIcon className="h-4 w-4 text-slate-400 flex-shrink-0" />
+          <Link to="/browse" className="hover:text-primary-600 transition-colors">Browse Models</Link>
+          <ChevronRightIcon className="h-4 w-4 text-slate-400 flex-shrink-0" />
+          <span className="text-slate-900 font-medium truncate">{model.name}</span>
+        </nav>
 
         <div className="flex flex-col lg:flex-row gap-8">
           {/* Model Info */}
@@ -243,41 +272,25 @@ export const ModelDetailPage = () => {
             <p className="text-slate-600 mb-4">This model has {versions.length} available version{versions.length !== 1 ? 's' : ''}.</p>
           </div>
 
-          {/* Version Selector */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Version Selector — horizontal pill tabs */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-2">
             {versions.map((version, idx) => (
               <button
                 key={idx}
-                onClick={() => setSelectedVersionIdx(idx)}
-                className={`p-4 rounded-lg border-2 transition-all text-left ${
+                onClick={() => { setSelectedVersionIdx(idx); setGenerateError(null); }}
+                className={`flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all ${
                   selectedVersionIdx === idx
-                    ? 'border-primary-600 bg-primary-50'
-                    : 'border-slate-200 bg-white hover:border-slate-300'
+                    ? 'bg-primary-600 text-white shadow-sm'
+                    : 'border border-slate-200 text-slate-700 hover:border-primary-300 hover:text-primary-600'
                 }`}
               >
-                <div className="flex items-start justify-between mb-2">
-                  <div>
-                    <h3 className="font-semibold text-slate-900">v{version.version_name || version.version_string}</h3>
-                    <p className="text-xs text-slate-500 mt-1">
-                      {new Date(version.published_at).toLocaleDateString()}
-                    </p>
-                  </div>
-                  {version.is_supported && (
-                    <CheckBadgeIcon className="h-5 w-5 text-accent-lime flex-shrink-0" />
-                  )}
-                </div>
-                {version.changelog && (
-                  <p className="text-sm text-slate-600 line-clamp-2">{version.changelog}</p>
+                <span>v{version.version_name || version.version_string}</span>
+                <span className={selectedVersionIdx === idx ? 'text-primary-200' : 'text-slate-400'}>
+                  · {version.download_count} ⬇
+                </span>
+                {version.is_supported && (
+                  <CheckBadgeIcon className={`h-4 w-4 flex-shrink-0 ${selectedVersionIdx === idx ? 'text-primary-200' : 'text-accent-lime'}`} />
                 )}
-                <div className="flex items-center gap-2 mt-3 text-xs">
-                  <span className="text-slate-600">{version.download_count} downloads</span>
-                  {version.num_ratings > 0 && (
-                    <>
-                      <span className="text-slate-400">•</span>
-                      <span className="text-slate-600">{version.rating_avg.toFixed(1)} ⭐</span>
-                    </>
-                  )}
-                </div>
               </button>
             ))}
           </div>
@@ -367,18 +380,36 @@ export const ModelDetailPage = () => {
                 </div>
               </div>
 
-              {/* Download and Config Buttons */}
-              <div className="border-t border-slate-200 pt-6 flex gap-3">
-                {selectedVersion.status === 'unconfigured' && (
+              {/* Pipeline Actions */}
+              <div className="border-t border-slate-200 pt-6 space-y-3">
+                <div className="flex gap-3">
                   <Button
                     variant="primary"
                     size="lg"
                     className="flex-1 justify-center gap-2"
-                    onClick={() => setShowPipelineEditor(true)}
+                    onClick={handleGeneratePipeline}
+                    disabled={generatingPipeline}
                   >
-                    <SparklesIcon className="h-5 w-5" />
-                    Create Configuration
+                    <ArrowPathIcon className={`h-5 w-5 ${generatingPipeline ? 'animate-spin' : ''}`} />
+                    {generatingPipeline ? 'Generating…' : 'Generate Pipeline'}
                   </Button>
+                  {selectedVersion.status === 'unconfigured' && (
+                    <Button
+                      variant="outline"
+                      size="lg"
+                      className="flex-1 justify-center gap-2"
+                      onClick={() => setShowPipelineEditor(true)}
+                    >
+                      <SparklesIcon className="h-5 w-5" />
+                      Create Manually
+                    </Button>
+                  )}
+                </div>
+                {generateError && (
+                  <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+                    <ExclamationTriangleIcon className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                    {generateError}
+                  </div>
                 )}
               </div>
             </div>

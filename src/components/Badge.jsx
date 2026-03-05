@@ -15,6 +15,7 @@ export default function Badge({
     lime: 'bg-lime-100 text-lime-800',
     amber: 'bg-amber-100 text-amber-800',
     rose: 'bg-rose-100 text-rose-800',
+    secondary: 'bg-secondary-100 text-secondary-700',
   };
 
   return (

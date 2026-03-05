@@ -8,13 +8,27 @@ import LoadingCard from '../components/LoadingCard';
 import EmptyState from '../components/EmptyState';
 import { FunnelIcon } from '@heroicons/react/24/outline';
 
+const FILTER_SESSION_KEY = 'browse_filters';
+
+const loadSavedFilters = () => {
+  try {
+    return JSON.parse(sessionStorage.getItem(FILTER_SESSION_KEY) || '{}');
+  } catch {
+    return {};
+  }
+};
+
 export const BrowseModelsPage = () => {
+  const saved = loadSavedFilters();
+
   const [models, setModels] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState(null);
-  const [sortBy, setSortBy] = useState('newest');
-  const [currentPage, setCurrentPage] = useState(1);
+  const [searchQuery, setSearchQuery] = useState(saved.searchQuery ?? '');
+  const [categoryFilter, setCategoryFilter] = useState(saved.categoryFilter ?? null);
+  const [taskFilter, setTaskFilter] = useState(saved.taskFilter ?? null);
+  const [hasVersionsOnly, setHasVersionsOnly] = useState(saved.hasVersionsOnly ?? false);
+  const [sortBy, setSortBy] = useState(saved.sortBy ?? 'newest');
+  const [currentPage, setCurrentPage] = useState(saved.currentPage ?? 1);
   const itemsPerPage = 12;
 
   // Fetch all models
@@ -25,6 +39,13 @@ export const BrowseModelsPage = () => {
       .finally(() => setLoading(false));
   }, []);
 
+  // Persist filter state for the session
+  useEffect(() => {
+    sessionStorage.setItem(FILTER_SESSION_KEY, JSON.stringify({
+      searchQuery, categoryFilter, taskFilter, hasVersionsOnly, sortBy, currentPage,
+    }));
+  }, [searchQuery, categoryFilter, taskFilter, hasVersionsOnly, sortBy, currentPage]);
+
   // Filter and sort logic
   const filteredModels = useMemo(() => {
     let result = [...models];
@@ -32,6 +53,16 @@ export const BrowseModelsPage = () => {
     // Category filter
     if (categoryFilter) {
       result = result.filter(m => m.category === categoryFilter);
+    }
+
+    // Task filter
+    if (taskFilter) {
+      result = result.filter(m => m.task === taskFilter);
+    }
+
+    // Has versions filter
+    if (hasVersionsOnly) {
+      result = result.filter(m => (m.version_count ?? 0) >= 1);
     }
 
     // Search filter
@@ -59,10 +90,11 @@ export const BrowseModelsPage = () => {
     }
 
     return result;
-  }, [models, searchQuery, categoryFilter, sortBy]);
+  }, [models, searchQuery, categoryFilter, taskFilter, hasVersionsOnly, sortBy]);
 
-  // Get unique categories
+  // Get unique categories and tasks
   const categories = [...new Set(models.map(m => m.category))].sort();
+  const tasks = [...new Set(models.map(m => m.task).filter(Boolean))].sort();
 
   // Pagination logic
   const totalPages = Math.ceil(filteredModels.length / itemsPerPage);
@@ -74,9 +106,74 @@ export const BrowseModelsPage = () => {
     setCurrentPage(1);
   }
 
-  const handlePageChange = (page) => {
+  const handlePageChange = (page, scrollToTop = true) => {
     setCurrentPage(page);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (scrollToTop) window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const Pagination = ({ scrollToTop = true }) => {
+    if (totalPages <= 1) return null;
+    return (
+      <div className="flex items-center justify-center gap-2">
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => handlePageChange(currentPage - 1, scrollToTop)}
+          disabled={currentPage === 1}
+        >
+          Previous
+        </Button>
+
+        <div className="flex items-center gap-1">
+          {[...Array(totalPages)].map((_, i) => {
+            const pageNum = i + 1;
+            if (totalPages <= 5) {
+              return (
+                <button
+                  key={pageNum}
+                  onClick={() => handlePageChange(pageNum, scrollToTop)}
+                  className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
+                    currentPage === pageNum
+                      ? 'bg-primary-600 text-black'
+                      : 'bg-slate-200 text-slate-900 hover:bg-slate-300'
+                  }`}
+                >
+                  {pageNum}
+                </button>
+              );
+            }
+            if (pageNum === 1 || pageNum === totalPages || Math.abs(pageNum - currentPage) <= 1) {
+              return (
+                <button
+                  key={pageNum}
+                  onClick={() => handlePageChange(pageNum, scrollToTop)}
+                  className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
+                    currentPage === pageNum
+                      ? 'bg-primary-600 text-black'
+                      : 'bg-slate-200 text-slate-900 hover:bg-slate-300'
+                  }`}
+                >
+                  {pageNum}
+                </button>
+              );
+            }
+            if (pageNum === 2 || pageNum === totalPages - 1) {
+              return <span key={`ellipsis-${pageNum}`} className="px-2 text-slate-600">...</span>;
+            }
+            return null;
+          })}
+        </div>
+
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => handlePageChange(currentPage + 1, scrollToTop)}
+          disabled={currentPage === totalPages}
+        >
+          Next
+        </Button>
+      </div>
+    );
   };
 
   const filterOptions = [
@@ -87,6 +184,15 @@ export const BrowseModelsPage = () => {
       options: [
         { label: 'All Categories', value: null },
         ...categories.map(cat => ({ label: cat, value: cat }))
+      ]
+    },
+    {
+      id: 'task',
+      label: 'Task Type',
+      activeValue: taskFilter,
+      options: [
+        { label: 'All Tasks', value: null },
+        ...tasks.map(t => ({ label: t, value: t }))
       ]
     },
     {
@@ -104,6 +210,8 @@ export const BrowseModelsPage = () => {
   const handleFilterChange = (filterId, value) => {
     if (filterId === 'category') {
       setCategoryFilter(value);
+    } else if (filterId === 'task') {
+      setTaskFilter(value);
     } else if (filterId === 'sort') {
       setSortBy(value);
     }
@@ -133,13 +241,24 @@ export const BrowseModelsPage = () => {
             filters={filterOptions}
             onFilterChange={handleFilterChange}
           />
-          {(searchQuery || categoryFilter || sortBy !== 'newest') && (
+          <label className="flex items-center gap-2 cursor-pointer select-none text-sm text-slate-700 px-3 py-2 border border-slate-200 rounded-lg bg-white hover:bg-slate-50 transition-colors">
+            <input
+              type="checkbox"
+              checked={hasVersionsOnly}
+              onChange={e => { setHasVersionsOnly(e.target.checked); setCurrentPage(1); }}
+              className="h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+            />
+            Has versions
+          </label>
+          {(searchQuery || categoryFilter || taskFilter || hasVersionsOnly || sortBy !== 'newest') && (
             <Button
               variant="tertiary"
               size="sm"
               onClick={() => {
                 setSearchQuery('');
                 setCategoryFilter(null);
+                setTaskFilter(null);
+                setHasVersionsOnly(false);
                 setSortBy('newest');
               }}
             >
@@ -163,90 +282,21 @@ export const BrowseModelsPage = () => {
         </div>
       ) : paginatedModels.length > 0 ? (
         <>
+          <Pagination scrollToTop={false} />
+
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {paginatedModels.map((model) => (
               <ModelCard key={model.id} model={model} />
             ))}
           </div>
 
-          {/* Pagination Controls */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-2 mt-8">
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => handlePageChange(currentPage - 1)}
-                disabled={currentPage === 1}
-              >
-                Previous
-              </Button>
-
-              <div className="flex items-center gap-1">
-                {[...Array(totalPages)].map((_, i) => {
-                  const pageNum = i + 1;
-                  // Show all pages if 5 or fewer, otherwise show with ellipsis
-                  if (totalPages <= 5) {
-                    return (
-                      <button
-                        key={pageNum}
-                        onClick={() => handlePageChange(pageNum)}
-                        className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
-                          currentPage === pageNum
-                            ? 'bg-primary-600 text-black'
-                            : 'bg-slate-200 text-slate-900 hover:bg-slate-300'
-                        }`}
-                      >
-                        {pageNum}
-                      </button>
-                    );
-                  }
-
-                  // Show first, last, and nearby pages with ellipsis
-                  if (pageNum === 1 || pageNum === totalPages || Math.abs(pageNum - currentPage) <= 1) {
-                    return (
-                      <button
-                        key={pageNum}
-                        onClick={() => handlePageChange(pageNum)}
-                        className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
-                          currentPage === pageNum
-                            ? 'bg-primary-600 text-black'
-                            : 'bg-slate-200 text-slate-900 hover:bg-slate-300'
-                        }`}
-                      >
-                        {pageNum}
-                      </button>
-                    );
-                  }
-
-                  // Show ellipsis
-                  if (pageNum === 2 || pageNum === totalPages - 1) {
-                    return (
-                      <span key={`ellipsis-${pageNum}`} className="px-2 text-slate-600">
-                        ...
-                      </span>
-                    );
-                  }
-
-                  return null;
-                })}
-              </div>
-
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => handlePageChange(currentPage + 1)}
-                disabled={currentPage === totalPages}
-              >
-                Next
-              </Button>
-            </div>
-          )}
+          <Pagination scrollToTop={true} />
         </>
       ) : (
         <EmptyState
-          title={searchQuery || categoryFilter ? "No models found" : "No models available"}
+          title={searchQuery || categoryFilter || taskFilter || hasVersionsOnly ? "No models found" : "No models available"}
           description={
-            searchQuery || categoryFilter
+            searchQuery || categoryFilter || taskFilter || hasVersionsOnly
               ? "Try adjusting your search or filters"
               : "Check back later for new models"
           }

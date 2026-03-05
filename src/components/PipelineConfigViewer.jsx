@@ -1,6 +1,6 @@
 import React from 'react';
-import { 
-  CodeBracketIcon, 
+import {
+  CodeBracketIcon,
   CheckIcon,
   ExclamationTriangleIcon,
   Cog6ToothIcon,
@@ -8,10 +8,9 @@ import {
 } from '@heroicons/react/24/outline';
 
 const PipelineConfigViewer = ({ pipelineSpec, onEdit, isEditable = false }) => {
-  // Handle legacy or invalid specifications
   const isValidSpec = pipelineSpec && (
-    pipelineSpec.metadata || 
-    pipelineSpec.preprocessing || 
+    pipelineSpec.metadata ||
+    pipelineSpec.preprocessing ||
     pipelineSpec.postprocessing
   );
 
@@ -37,62 +36,200 @@ const PipelineConfigViewer = ({ pipelineSpec, onEdit, isEditable = false }) => {
     );
   }
 
-  // Handle new schema format with metadata, inputs, outputs, preprocessing, postprocessing
-  const hasNewFormat = pipelineSpec.metadata && Array.isArray(pipelineSpec.preprocessing);
-  
-  if (hasNewFormat) {
-    return (
-      <div>
-        <h3 className="text-lg font-bold text-slate-900 mb-4">Pipeline Configuration</h3>
-        <div className="bg-slate-50 rounded-lg border border-slate-200 p-6 space-y-4">
-          {pipelineSpec.metadata && pipelineSpec.metadata[0] && (
-            <div className="mb-4 pb-4 border-b border-slate-300">
-              <h4 className="font-semibold text-slate-900 mb-2">Model Information</h4>
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <p className="text-slate-600">Model Name</p>
-                  <p className="font-medium text-slate-900">{pipelineSpec.metadata[0].model_name}</p>
+  // ── Shared sub-components ────────────────────────────────────────────────
+
+  const TensorRow = ({ tensor }) => (
+    <div className="flex items-center gap-2 text-sm">
+      <span className="font-mono font-medium text-slate-800">{tensor.name}</span>
+      <span className="text-slate-400">·</span>
+      <span className="px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded font-mono text-xs">
+        [{Array.isArray(tensor.shape) ? tensor.shape.join(', ') : tensor.shape}]
+      </span>
+      <span className="text-slate-400">·</span>
+      <span className="px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded font-mono text-xs">{tensor.dtype}</span>
+    </div>
+  );
+
+  // Used by new-format path (step.step + step.params)
+  const NewPreprocessingStep = ({ step, index, totalSteps }) => (
+    <div className="flex items-start gap-3">
+      <div className="flex flex-col items-center">
+        <div className="w-7 h-7 rounded-full bg-primary-100 border-2 border-primary-600 flex items-center justify-center text-xs font-bold text-primary-600">
+          {index + 1}
+        </div>
+        {index < totalSteps - 1 && <div className="w-0.5 h-8 bg-primary-200 my-1" />}
+      </div>
+      <div className="flex-1 pt-0.5">
+        <div className="p-3 bg-white rounded-lg border border-slate-200">
+          <code className="px-2 py-0.5 bg-primary-100 text-primary-700 rounded text-sm font-semibold">
+            {step.step}
+          </code>
+          {Object.keys(step.params || {}).length > 0 && (
+            <div className="mt-2 space-y-1 text-sm">
+              {Object.entries(step.params).map(([key, value]) => (
+                <div key={key} className="flex items-start gap-2">
+                  <span className="text-slate-600 font-medium">{key}:</span>
+                  <span className="text-slate-700 font-mono text-xs">
+                    {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                  </span>
                 </div>
-                <div>
-                  <p className="text-slate-600">Framework</p>
-                  <p className="font-medium text-slate-900">{pipelineSpec.metadata[0].framework}</p>
-                </div>
-              </div>
+              ))}
             </div>
           )}
-          
+        </div>
+      </div>
+    </div>
+  );
+
+  const NewPostprocessingStep = ({ step, index, totalSteps }) => (
+    <div className="flex items-start gap-3">
+      <div className="flex flex-col items-center">
+        <div className="w-7 h-7 rounded-full bg-secondary-100 border-2 border-secondary-600 flex items-center justify-center text-xs font-bold text-secondary-600">
+          {index + 1}
+        </div>
+        {index < totalSteps - 1 && <div className="w-0.5 h-8 bg-secondary-200 my-1" />}
+      </div>
+      <div className="flex-1 pt-0.5">
+        <div className="p-3 bg-white rounded-lg border border-slate-200">
+          <code className="px-2 py-0.5 bg-secondary-100 text-secondary-700 rounded text-sm font-semibold">
+            {step.step}
+          </code>
+          {Object.keys(step.params || {}).length > 0 && (
+            <div className="mt-2 space-y-1 text-sm">
+              {Object.entries(step.params).map(([key, value]) => (
+                <div key={key} className="flex items-start gap-2">
+                  <span className="text-slate-600 font-medium">{key}:</span>
+                  <span className="text-slate-700 font-mono text-xs">
+                    {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
+  // ── New schema format (metadata + inputs + outputs arrays) ───────────────
+
+  const hasNewFormat = pipelineSpec.metadata && Array.isArray(pipelineSpec.preprocessing);
+
+  if (hasNewFormat) {
+    const meta = pipelineSpec.metadata?.[0] || {};
+
+    return (
+      <div className="space-y-8">
+        {/* Header */}
+        <div className="flex items-start justify-between">
+          <h3 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+            <CodeBracketIcon className="h-7 w-7 text-primary-600" />
+            Pipeline Configuration
+          </h3>
+          {isEditable && (
+            <button
+              onClick={onEdit}
+              className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium flex items-center gap-2 transition-colors"
+            >
+              <Cog6ToothIcon className="h-4 w-4" />
+              Edit Configuration
+            </button>
+          )}
+        </div>
+
+        {/* Metadata row */}
+        <div className="flex flex-wrap items-center gap-2 text-sm px-3 py-2 bg-slate-50 rounded-lg border border-slate-200">
+          {meta.model_name && <span className="font-medium text-slate-900">{meta.model_name}</span>}
+          {meta.model_name && (meta.model_task || meta.framework) && <span className="text-slate-300">·</span>}
+          {meta.model_task && <span className="text-slate-600">{meta.model_task}</span>}
+          {meta.model_task && meta.framework && <span className="text-slate-300">·</span>}
+          {meta.framework && <span className="text-slate-600">{meta.framework}</span>}
+          {meta.schema_version && (
+            <>
+              <span className="text-slate-300">·</span>
+              <span className="text-slate-600">schema v{meta.schema_version}</span>
+            </>
+          )}
+        </div>
+
+        <div className="space-y-12">
+          {/* INPUT section */}
           {pipelineSpec.preprocessing && pipelineSpec.preprocessing.length > 0 && (
-            <div>
-              <h4 className="font-semibold text-slate-900 mb-3">Preprocessing</h4>
-              <div className="space-y-2">
+            <div className="space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="h-0.5 flex-1 bg-primary-200" />
+                <span className="px-3 py-1 bg-primary-100 text-primary-700 rounded-full text-sm font-semibold">INPUT</span>
+                <div className="h-0.5 flex-1 bg-primary-200" />
+              </div>
+
+              {pipelineSpec.inputs && pipelineSpec.inputs.length > 0 && (
+                <div className="space-y-1.5 ml-2">
+                  {pipelineSpec.inputs.map((t, i) => (
+                    <TensorRow key={i} tensor={t} />
+                  ))}
+                </div>
+              )}
+
+              <div className="space-y-6">
                 {pipelineSpec.preprocessing.map((block, blockIdx) => (
-                  <div key={blockIdx} className="p-3 bg-white rounded border border-slate-200">
-                    <p className="text-sm font-medium text-slate-700">{block.input_name} ({block.expects_type})</p>
-                    <div className="mt-2 space-y-1">
+                  <div key={blockIdx} className="space-y-3">
+                    <p className="text-sm font-semibold text-slate-700">
+                      <span className="font-mono text-primary-700">{block.input_name}</span>
+                      <span className="text-slate-500 font-normal"> (expects: {block.expects_type})</span>
+                    </p>
+                    <div className="ml-4 space-y-1">
                       {block.steps && block.steps.map((step, stepIdx) => (
-                        <p key={stepIdx} className="text-xs text-slate-600 ml-2">
-                          {stepIdx + 1}. {step.step}
-                        </p>
+                        <NewPreprocessingStep key={stepIdx} step={step} index={stepIdx} totalSteps={block.steps.length} />
                       ))}
                     </div>
                   </div>
                 ))}
               </div>
+
+              <div className="flex justify-center py-2">
+                <ArrowRightIcon className="h-6 w-6 text-slate-400 rotate-90" />
+              </div>
             </div>
           )}
-          
+
+          {/* Model inference */}
+          <div className="flex justify-center py-4">
+            <div className="px-6 py-3 bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-200 rounded-full font-bold text-amber-900">
+              🧠 MODEL INFERENCE
+            </div>
+          </div>
+
+          {/* OUTPUT section */}
           {pipelineSpec.postprocessing && pipelineSpec.postprocessing.length > 0 && (
-            <div>
-              <h4 className="font-semibold text-slate-900 mb-3">Postprocessing</h4>
-              <div className="space-y-2">
+            <div className="space-y-4">
+              <div className="flex justify-center py-2">
+                <ArrowRightIcon className="h-6 w-6 text-slate-400 rotate-90" />
+              </div>
+
+              <div className="flex items-center gap-3">
+                <div className="h-0.5 flex-1 bg-secondary-200" />
+                <span className="px-3 py-1 bg-secondary-100 text-secondary-700 rounded-full text-sm font-semibold">OUTPUT</span>
+                <div className="h-0.5 flex-1 bg-secondary-200" />
+              </div>
+
+              {pipelineSpec.outputs && pipelineSpec.outputs.length > 0 && (
+                <div className="space-y-1.5 ml-2">
+                  {pipelineSpec.outputs.map((t, i) => (
+                    <TensorRow key={i} tensor={t} />
+                  ))}
+                </div>
+              )}
+
+              <div className="space-y-6">
                 {pipelineSpec.postprocessing.map((block, blockIdx) => (
-                  <div key={blockIdx} className="p-3 bg-white rounded border border-slate-200">
-                    <p className="text-sm font-medium text-slate-700">{block.output_name} ({block.interpretation})</p>
-                    <div className="mt-2 space-y-1">
+                  <div key={blockIdx} className="space-y-3">
+                    <p className="text-sm font-semibold text-slate-700">
+                      <span className="font-mono text-secondary-700">{block.output_name}</span>
+                      <span className="text-slate-500 font-normal"> (interpretation: {block.interpretation})</span>
+                    </p>
+                    <div className="ml-4 space-y-1">
                       {block.steps && block.steps.map((step, stepIdx) => (
-                        <p key={stepIdx} className="text-xs text-slate-600 ml-2">
-                          {stepIdx + 1}. {step.step}
-                        </p>
+                        <NewPostprocessingStep key={stepIdx} step={step} index={stepIdx} totalSteps={block.steps.length} />
                       ))}
                     </div>
                   </div>
@@ -104,6 +241,8 @@ const PipelineConfigViewer = ({ pipelineSpec, onEdit, isEditable = false }) => {
       </div>
     );
   }
+
+  // ── Legacy schema format ─────────────────────────────────────────────────
 
   const PreprocessingStep = ({ step, index }) => (
     <div className="flex items-start gap-3">
@@ -123,7 +262,6 @@ const PipelineConfigViewer = ({ pipelineSpec, onEdit, isEditable = false }) => {
             </code>
             <span className="text-xs text-slate-600">Preprocessing Step {index + 1}</span>
           </div>
-          
           {Object.keys(step.params || {}).length > 0 && (
             <div className="mt-3 space-y-2 text-sm">
               {Object.entries(step.params).map(([key, value]) => (
@@ -144,22 +282,21 @@ const PipelineConfigViewer = ({ pipelineSpec, onEdit, isEditable = false }) => {
   const PostprocessingStep = ({ step, index }) => (
     <div className="flex items-start gap-3">
       <div className="flex flex-col items-center">
-        <div className="w-8 h-8 rounded-full bg-accent-lime-100 border-2 border-accent-lime flex items-center justify-center text-sm font-bold text-accent-lime">
+        <div className="w-8 h-8 rounded-full bg-secondary-100 border-2 border-secondary-600 flex items-center justify-center text-sm font-bold text-secondary-600">
           {index + 1}
         </div>
         {index < (pipelineSpec.postprocessing?.length || 0) - 1 && (
-          <div className="w-0.5 h-12 bg-accent-lime-200 my-1"></div>
+          <div className="w-0.5 h-12 bg-secondary-200 my-1"></div>
         )}
       </div>
       <div className="flex-1 pt-1">
         <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
           <div className="flex items-center gap-2 mb-2">
-            <code className="px-2 py-1 bg-accent-lime-100 text-accent-lime-700 rounded text-sm font-semibold">
+            <code className="px-2 py-1 bg-secondary-100 text-secondary-700 rounded text-sm font-semibold">
               {step.action}
             </code>
             <span className="text-xs text-slate-600">Postprocessing Step {index + 1}</span>
           </div>
-          
           {Object.keys(step.params || {}).length > 0 && (
             <div className="mt-3 space-y-2 text-sm">
               {Object.entries(step.params).map(([key, value]) => (
@@ -204,57 +341,45 @@ const PipelineConfigViewer = ({ pipelineSpec, onEdit, isEditable = false }) => {
         )}
       </div>
 
-      {/* Main Pipeline Flow */}
       <div className="space-y-12">
-        {/* Preprocessing Section */}
         {hasPreprocessing && (
           <div className="space-y-4">
             <div className="flex items-center gap-3">
               <div className="h-0.5 flex-1 bg-primary-200"></div>
-              <h4 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                <span className="px-3 py-1 bg-primary-100 text-primary-700 rounded-full text-sm font-semibold">
-                  INPUT
-                </span>
+              <h4 className="text-lg font-bold text-slate-900">
+                <span className="px-3 py-1 bg-primary-100 text-primary-700 rounded-full text-sm font-semibold">INPUT</span>
               </h4>
               <div className="h-0.5 flex-1 bg-primary-200"></div>
             </div>
-            
             <div className="space-y-6">
               {pipelineSpec.preprocessing.map((step, idx) => (
                 <PreprocessingStep key={idx} step={step} index={idx} />
               ))}
             </div>
-
             <div className="flex justify-center py-2">
               <ArrowRightIcon className="h-6 w-6 text-slate-400 rotate-90" />
             </div>
           </div>
         )}
 
-        {/* Model Execution Section */}
         <div className="flex justify-center py-4">
           <div className="px-6 py-3 bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-200 rounded-full font-bold text-amber-900">
             🧠 MODEL INFERENCE
           </div>
         </div>
 
-        {/* Postprocessing Section */}
         {hasPostprocessing && (
           <div className="space-y-4">
             <div className="flex justify-center py-2">
               <ArrowRightIcon className="h-6 w-6 text-slate-400 rotate-90" />
             </div>
-
             <div className="flex items-center gap-3">
-              <div className="h-0.5 flex-1 bg-accent-lime-200"></div>
-              <h4 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                <span className="px-3 py-1 bg-accent-lime-100 text-accent-lime-700 rounded-full text-sm font-semibold">
-                  OUTPUT
-                </span>
+              <div className="h-0.5 flex-1 bg-secondary-200"></div>
+              <h4 className="text-lg font-bold text-slate-900">
+                <span className="px-3 py-1 bg-secondary-100 text-secondary-700 rounded-full text-sm font-semibold">OUTPUT</span>
               </h4>
-              <div className="h-0.5 flex-1 bg-accent-lime-200"></div>
+              <div className="h-0.5 flex-1 bg-secondary-200"></div>
             </div>
-
             <div className="space-y-6">
               {pipelineSpec.postprocessing.map((step, idx) => (
                 <PostprocessingStep key={idx} step={step} index={idx} />
@@ -263,7 +388,6 @@ const PipelineConfigViewer = ({ pipelineSpec, onEdit, isEditable = false }) => {
           </div>
         )}
 
-        {/* Summary */}
         {(hasPreprocessing || hasPostprocessing) && (
           <div className="mt-8 p-6 bg-blue-50 border border-blue-200 rounded-lg">
             <h4 className="font-semibold text-blue-900 mb-3 flex items-center gap-2">
