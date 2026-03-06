@@ -127,6 +127,12 @@ export const ModelDetailPage = () => {
     );
   }
 
+  const formatFileSize = (bytes) => {
+    if (!bytes) return null;
+    if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(1)} GB`;
+    return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
+  };
+
   const rating = model.rating_weighted_avg?.toFixed(1) || '0.0';
   const selectedVersion = versions[selectedVersionIdx];
   const versionRating = selectedVersion?.rating_avg?.toFixed(1) || '0.0';
@@ -355,7 +361,7 @@ export const ModelDetailPage = () => {
               </div>
 
               {/* Version Stats */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className={`grid grid-cols-1 gap-4 ${formatFileSize(selectedVersion.file_size_bytes) ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}>
                 <div className="p-4 bg-slate-50 rounded-lg">
                   <p className="text-sm text-slate-600 mb-2">Downloads</p>
                   <p className="text-2xl font-bold text-slate-900">{selectedVersion.download_count}</p>
@@ -378,6 +384,12 @@ export const ModelDetailPage = () => {
                   </div>
                   <p className="text-xs text-slate-600 mt-1">({selectedVersion.num_ratings} ratings)</p>
                 </div>
+                {formatFileSize(selectedVersion.file_size_bytes) && (
+                  <div className="p-4 bg-slate-50 rounded-lg">
+                    <p className="text-sm text-slate-600 mb-2">File Size</p>
+                    <p className="text-2xl font-bold text-slate-900">{formatFileSize(selectedVersion.file_size_bytes)}</p>
+                  </div>
+                )}
               </div>
 
               {/* Pipeline Actions */}

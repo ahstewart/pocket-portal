@@ -27,6 +27,12 @@ export const ModelCard = ({ model }) => {
     return colors[category] || 'border-primary-500';
   };
 
+  const formatFileSize = (bytes) => {
+    if (!bytes) return null;
+    if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(1)} GB`;
+    return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
+  };
+
   const rating = model.rating_weighted_avg?.toFixed(1) || '0.0';
   const taskLabel = model.task
     ? model.task.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
@@ -75,6 +81,11 @@ export const ModelCard = ({ model }) => {
             <RectangleStackIcon className="h-3.5 w-3.5" />
             <span>{model.version_count ?? 0} {model.version_count === 1 ? 'version' : 'versions'}</span>
           </div>
+          {formatFileSize(model.file_size_bytes) && (
+            <span className="text-slate-500">
+              {formatFileSize(model.file_size_bytes)}
+            </span>
+          )}
           {model.license_type && (
             <span className="ml-auto px-1.5 py-0.5 bg-slate-100 rounded uppercase tracking-wide">
               {model.license_type}
