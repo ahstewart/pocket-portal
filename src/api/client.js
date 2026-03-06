@@ -3,7 +3,7 @@ import axios from 'axios';
 import { supabase } from '../lib/supabase';
 
 // The base URL now explicitly includes the /api/v1 prefix
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
+const API_BASE_URL = import.meta.env.API_BASE_URL || 'http://localhost:8000/api/v1';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
