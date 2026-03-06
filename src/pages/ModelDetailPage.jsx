@@ -17,6 +17,7 @@ import {
   ChevronRightIcon,
   ArrowPathIcon,
   ArrowLeftIcon,
+  TrashIcon,
 } from '@heroicons/react/24/outline';
 import { StarIcon as StarSolidIcon } from '@heroicons/react/24/solid';
 
@@ -31,6 +32,9 @@ export const ModelDetailPage = () => {
   const [savingPipeline, setSavingPipeline] = useState(false);
   const [generatingPipeline, setGeneratingPipeline] = useState(false);
   const [generateError, setGenerateError] = useState(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deletingPipeline, setDeletingPipeline] = useState(false);
+  const [deleteError, setDeleteError] = useState(null);
 
   useEffect(() => {
     // Fetch single model and its versions
@@ -73,6 +77,28 @@ export const ModelDetailPage = () => {
       setGenerateError(err.response?.data?.detail || 'Generation failed. Check server logs.');
     } finally {
       setGeneratingPipeline(false);
+    }
+  };
+
+  // Reset delete state when the user switches version tabs
+  useEffect(() => {
+    setShowDeleteConfirm(false);
+    setDeleteError(null);
+  }, [selectedVersionIdx]);
+
+  const handleDeletePipeline = async () => {
+    setDeletingPipeline(true);
+    setDeleteError(null);
+    try {
+      const updatedVersion = await ApiService.deletePipeline(versions[selectedVersionIdx].id);
+      const updatedVersions = [...versions];
+      updatedVersions[selectedVersionIdx] = updatedVersion;
+      setVersions(updatedVersions);
+      setShowDeleteConfirm(false);
+    } catch (err) {
+      setDeleteError(err.response?.data?.detail || 'Delete failed. Check server logs.');
+    } finally {
+      setDeletingPipeline(false);
     }
   };
 
@@ -421,6 +447,43 @@ export const ModelDetailPage = () => {
                   <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
                     <ExclamationTriangleIcon className="h-4 w-4 flex-shrink-0 mt-0.5" />
                     {generateError}
+                  </div>
+                )}
+                {selectedVersion.pipeline_spec && (
+                  <div className="space-y-2 pt-2">
+                    {showDeleteConfirm ? (
+                      <div className="flex items-center gap-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+                        <p className="text-sm text-red-800 flex-1">Delete this pipeline configuration?</p>
+                        <Button variant="ghost" size="sm" onClick={() => setShowDeleteConfirm(false)}>
+                          Cancel
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="border-red-400 text-red-700 hover:bg-red-100"
+                          onClick={handleDeletePipeline}
+                          disabled={deletingPipeline}
+                        >
+                          {deletingPipeline ? 'Deleting…' : 'Delete'}
+                        </Button>
+                      </div>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex items-center gap-2 text-red-600 border-red-200 hover:bg-red-50"
+                        onClick={() => setShowDeleteConfirm(true)}
+                      >
+                        <TrashIcon className="h-4 w-4" />
+                        Delete Configuration
+                      </Button>
+                    )}
+                    {deleteError && (
+                      <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+                        <ExclamationTriangleIcon className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                        {deleteError}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

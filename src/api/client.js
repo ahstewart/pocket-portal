@@ -87,4 +87,9 @@ export const ApiService = {
     const response = await api.post(`/versions/${versionId}/generate-pipeline`);
     return response.data;
   },
+
+  deletePipeline: async (versionId) => {
+    const response = await api.delete(`/versions/${versionId}/pipeline`);
+    return response.data;
+  },
 };
