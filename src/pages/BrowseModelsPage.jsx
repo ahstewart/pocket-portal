@@ -92,9 +92,11 @@ export const BrowseModelsPage = () => {
     return result;
   }, [models, searchQuery, categoryFilter, taskFilter, hasVersionsOnly, sortBy]);
 
-  // Get unique categories and tasks
-  const categories = [...new Set(models.map(m => m.category))].sort();
-  const tasks = [...new Set(models.map(m => m.task).filter(Boolean))].sort();
+  // Get unique categories and tasks, sorted by model count descending
+  const categories = [...new Set(models.map(m => m.category))]
+    .sort((a, b) => models.filter(m => m.category === b).length - models.filter(m => m.category === a).length);
+  const tasks = [...new Set(models.map(m => m.task).filter(Boolean))]
+    .sort((a, b) => models.filter(m => m.task === b).length - models.filter(m => m.task === a).length);
 
   // Pagination logic
   const totalPages = Math.ceil(filteredModels.length / itemsPerPage);
