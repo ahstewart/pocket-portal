@@ -27,6 +27,7 @@ export const BrowseModelsPage = () => {
   const [categoryFilter, setCategoryFilter] = useState(saved.categoryFilter ?? null);
   const [taskFilter, setTaskFilter] = useState(saved.taskFilter ?? null);
   const [hasVersionsOnly, setHasVersionsOnly] = useState(saved.hasVersionsOnly ?? false);
+  const [statusFilter, setStatusFilter] = useState(saved.statusFilter ?? []);
   const [sortBy, setSortBy] = useState(saved.sortBy ?? 'newest');
   const [currentPage, setCurrentPage] = useState(saved.currentPage ?? 1);
   const itemsPerPage = 12;
@@ -42,7 +43,7 @@ export const BrowseModelsPage = () => {
   // Persist filter state for the session
   useEffect(() => {
     sessionStorage.setItem(FILTER_SESSION_KEY, JSON.stringify({
-      searchQuery, categoryFilter, taskFilter, hasVersionsOnly, sortBy, currentPage,
+      searchQuery, categoryFilter, taskFilter, hasVersionsOnly, statusFilter, sortBy, currentPage,
     }));
   }, [searchQuery, categoryFilter, taskFilter, hasVersionsOnly, sortBy, currentPage]);
 
@@ -65,6 +66,11 @@ export const BrowseModelsPage = () => {
       result = result.filter(m => (m.version_count ?? 0) >= 1);
     }
 
+    // Status filter (multi-select)
+    if (statusFilter.length > 0) {
+      result = result.filter(m => statusFilter.includes(m.best_version_status ?? 'none'));
+    }
+
     // Search filter
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
@@ -75,6 +81,7 @@ export const BrowseModelsPage = () => {
     }
 
     // Sort
+    const STATUS_PRIORITY = { supported: 0, configured: 1, unverified: 2, unconfigured: 3, broken: 4, unsupported: 5 };
     switch (sortBy) {
       case 'newest':
         result.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
@@ -85,12 +92,19 @@ export const BrowseModelsPage = () => {
       case 'highest-rated':
         result.sort((a, b) => (b.rating_weighted_avg || 0) - (a.rating_weighted_avg || 0));
         break;
+      case 'version-status':
+        result.sort((a, b) => {
+          const pa = STATUS_PRIORITY[a.best_version_status] ?? 99;
+          const pb = STATUS_PRIORITY[b.best_version_status] ?? 99;
+          return pa - pb;
+        });
+        break;
       default:
         break;
     }
 
     return result;
-  }, [models, searchQuery, categoryFilter, taskFilter, hasVersionsOnly, sortBy]);
+  }, [models, searchQuery, categoryFilter, taskFilter, hasVersionsOnly, statusFilter, sortBy]);
 
   // Get unique categories and tasks, sorted by model count descending
   const categories = [...new Set(models.map(m => m.category))]
@@ -198,13 +212,28 @@ export const BrowseModelsPage = () => {
       ]
     },
     {
+      id: 'status',
+      label: 'Pipeline Status',
+      activeValue: statusFilter,
+      multi: true,
+      options: [
+        { label: 'Supported', value: 'supported' },
+        { label: 'Configured', value: 'configured' },
+        { label: 'Unverified', value: 'unverified' },
+        { label: 'Unconfigured', value: 'unconfigured' },
+        { label: 'Broken', value: 'broken' },
+        { label: 'Unsupported', value: 'unsupported' },
+      ]
+    },
+    {
       id: 'sort',
       label: 'Sort By',
       activeValue: sortBy,
       options: [
         { label: 'Newest', value: 'newest' },
         { label: 'Most Downloaded', value: 'popular' },
-        { label: 'Highest Rated', value: 'highest-rated' }
+        { label: 'Highest Rated', value: 'highest-rated' },
+        { label: 'Pipeline Status', value: 'version-status' }
       ]
     }
   ];
@@ -214,6 +243,8 @@ export const BrowseModelsPage = () => {
       setCategoryFilter(value);
     } else if (filterId === 'task') {
       setTaskFilter(value);
+    } else if (filterId === 'status') {
+      setStatusFilter(value);
     } else if (filterId === 'sort') {
       setSortBy(value);
     }
@@ -252,7 +283,7 @@ export const BrowseModelsPage = () => {
             />
             Has versions
           </label>
-          {(searchQuery || categoryFilter || taskFilter || hasVersionsOnly || sortBy !== 'newest') && (
+          {(searchQuery || categoryFilter || taskFilter || hasVersionsOnly || statusFilter.length > 0 || sortBy !== 'newest') && (
             <Button
               variant="tertiary"
               size="sm"
@@ -261,6 +292,7 @@ export const BrowseModelsPage = () => {
                 setCategoryFilter(null);
                 setTaskFilter(null);
                 setHasVersionsOnly(false);
+                setStatusFilter([]);
                 setSortBy('newest');
               }}
             >
@@ -296,9 +328,9 @@ export const BrowseModelsPage = () => {
         </>
       ) : (
         <EmptyState
-          title={searchQuery || categoryFilter || taskFilter || hasVersionsOnly ? "No models found" : "No models available"}
+          title={searchQuery || categoryFilter || taskFilter || hasVersionsOnly || statusFilter.length > 0 ? "No models found" : "No models available"}
           description={
-            searchQuery || categoryFilter || taskFilter || hasVersionsOnly
+            searchQuery || categoryFilter || taskFilter || hasVersionsOnly || statusFilter.length > 0
               ? "Try adjusting your search or filters"
               : "Check back later for new models"
           }

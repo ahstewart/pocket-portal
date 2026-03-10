@@ -61,15 +61,18 @@ export const ApiService = {
     return response.data;
   },
 
-  createModelVersion: async (modelId, versionId, data) => {
-    const response = await api.post(`/models/${modelId}/versions/${versionId}`, data);
+  createModelVersion: async (modelId, data) => {
+    const response = await api.post(`/models/${modelId}/versions`, data);
     return response.data;
   },
 
-  updateModelVersion: async (modelId, versionId, data) => {
-    // Note: ensure this matches your Python API path (version vs versions)
-    const response = await api.patch(`/models/${modelId}/version/${versionId}`, data);
+  updateModelVersion: async (versionId, data) => {
+    const response = await api.patch(`/versions/${versionId}`, data);
     return response.data;
+  },
+
+  deleteVersion: async (versionId) => {
+    await api.delete(`/versions/${versionId}`);
   },
 
   // --- HUGGING FACE ---

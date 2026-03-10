@@ -5,138 +5,210 @@ import Button from '../components/Button';
 import Badge from '../components/Badge';
 import PipelineConfigViewer from '../components/PipelineConfigViewer';
 import { PipelineConfigWizard } from '../components/PipelineConfigWizard';
+import { AddVersionWizard } from '../components/AddVersionWizard';
 import {
   StarIcon as StarOutlineIcon,
-  CheckCircleIcon,
   ExclamationTriangleIcon,
-  DocumentTextIcon,
-  CodeBracketIcon,
   LinkIcon,
-  SparklesIcon,
-  CheckBadgeIcon,
   ChevronRightIcon,
   ArrowPathIcon,
   ArrowLeftIcon,
   TrashIcon,
+  PlusIcon,
+  EyeIcon,
+  PencilSquareIcon,
+  XMarkIcon,
 } from '@heroicons/react/24/outline';
 import { StarIcon as StarSolidIcon } from '@heroicons/react/24/solid';
+
+const STATUS_BADGE = {
+  supported:    'success',
+  configured:   'primary',
+  unverified:   'warning',
+  unconfigured: 'slate',
+  broken:       'danger',
+  unsupported:  'danger',
+};
+
+const STATUS_TOOLTIP = {
+  supported:    'Fully verified — the pipeline passed TFLite validation and is ready for on-device inference.',
+  configured:   'Manually configured — a pipeline exists but has not yet been validated against the TFLite model.',
+  unverified:   'Generated but unverified — a pipeline was created by AI, but the model file could not be tested (e.g. too large to validate locally). It may still work on device.',
+  unconfigured: 'No pipeline yet — this version has no pipeline configuration. Use the action buttons to generate or create one.',
+  broken:       'Validation failed — the generated pipeline was structurally incorrect or referenced unsupported operations.',
+  unsupported:  'Generation rejected — the AI determined this model is incompatible with the inference schema.',
+};
 
 export const ModelDetailPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [model, setModel] = useState(null);
+
+  const [model, setModel]     = useState(null);
   const [versions, setVersions] = useState([]);
-  const [selectedVersionIdx, setSelectedVersionIdx] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [showPipelineEditor, setShowPipelineEditor] = useState(false);
-  const [savingPipeline, setSavingPipeline] = useState(false);
-  const [generatingPipeline, setGeneratingPipeline] = useState(false);
-  const [generateError, setGenerateError] = useState(null);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [deletingPipeline, setDeletingPipeline] = useState(false);
-  const [deleteError, setDeleteError] = useState(null);
+
+  // Per-row action state
+  const [generatingId, setGeneratingId]       = useState(null);
+  const [deletingId, setDeletingId]           = useState(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState(null);
+  const [deleteError, setDeleteError]         = useState(null);
+  const [generateErrors, setGenerateErrors]   = useState({});
+  const [showReasonVersionId, setShowReasonVersionId] = useState(null);
+
+  // Pipeline view modal
+  const [viewPipelineVersion, setViewPipelineVersion] = useState(null);
+
+  // Pipeline edit modal
+  const [editPipelineVersion, setEditPipelineVersion] = useState(null);
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  // Add version wizard
+  const [showAddVersionWizard, setShowAddVersionWizard]           = useState(false);
+  const [pendingVersionDetails, setPendingVersionDetails]         = useState(null);
+  const [showNewVersionPipelineEditor, setShowNewVersionPipelineEditor] = useState(false);
+  const [addVersionError, setAddVersionError] = useState(null);
+
+  // ── Data fetch ────────────────────────────────────────────────────────────
 
   useEffect(() => {
-    // Fetch single model and its versions
     const fetchData = async () => {
       try {
         const [models, fetchedVersions] = await Promise.all([
           ApiService.getModels(),
-          ApiService.getModelVersions(id)
+          ApiService.getModelVersions(id),
         ]);
-        
         const found = models.find(m => m.id.toString() === id);
-        if (found) {
-          setModel(found);
-          setVersions(Array.isArray(fetchedVersions) ? fetchedVersions : []);
-        } else {
-          setModel(null);
-          setVersions([]);
-        }
+        setModel(found || null);
+        setVersions(Array.isArray(fetchedVersions) ? fetchedVersions : []);
       } catch (err) {
-        console.error("Failed to load model:", err);
+        console.error('Failed to load model:', err);
         setModel(null);
         setVersions([]);
       } finally {
         setLoading(false);
       }
     };
-    
     fetchData();
   }, [id]);
 
-  const handleGeneratePipeline = async () => {
-    setGeneratingPipeline(true);
-    setGenerateError(null);
+  // ── Per-row handlers ──────────────────────────────────────────────────────
+
+  const handleRegenerate = async (version) => {
+    setGeneratingId(version.id);
+    setGenerateErrors(prev => { const { [version.id]: _, ...rest } = prev; return rest; });
     try {
-      const updatedVersion = await ApiService.generatePipeline(versions[selectedVersionIdx].id);
-      const updatedVersions = [...versions];
-      updatedVersions[selectedVersionIdx] = updatedVersion;
-      setVersions(updatedVersions);
+      const updated = await ApiService.generatePipeline(version.id);
+      setVersions(prev => prev.map(v => v.id === updated.id ? updated : v));
     } catch (err) {
-      setGenerateError(err.response?.data?.detail || 'Generation failed. Check server logs.');
+      setGenerateErrors(prev => ({
+        ...prev,
+        [version.id]: err.response?.data?.detail || 'Pipeline generation failed.',
+      }));
     } finally {
-      setGeneratingPipeline(false);
+      setGeneratingId(null);
     }
   };
 
-  // Reset delete state when the user switches version tabs
-  useEffect(() => {
-    setShowDeleteConfirm(false);
-    setDeleteError(null);
-  }, [selectedVersionIdx]);
-
-  const handleDeletePipeline = async () => {
-    setDeletingPipeline(true);
+  const handleDeleteVersion = async (version) => {
+    setDeletingId(version.id);
     setDeleteError(null);
     try {
-      const updatedVersion = await ApiService.deletePipeline(versions[selectedVersionIdx].id);
-      const updatedVersions = [...versions];
-      updatedVersions[selectedVersionIdx] = updatedVersion;
-      setVersions(updatedVersions);
-      setShowDeleteConfirm(false);
+      await ApiService.deleteVersion(version.id);
+      setVersions(prev => prev.filter(v => v.id !== version.id));
+      setDeleteConfirmId(null);
     } catch (err) {
-      setDeleteError(err.response?.data?.detail || 'Delete failed. Check server logs.');
+      setDeleteError(err.response?.data?.detail || 'Delete failed.');
     } finally {
-      setDeletingPipeline(false);
+      setDeletingId(null);
     }
   };
 
-  const handleSavePipelineConfig = async (config) => {
-    setSavingPipeline(true);
+  // ── Edit pipeline handler ─────────────────────────────────────────────────
+
+  const handleEditPipelineSave = async (newConfig) => {
+    setSavingEdit(true);
     try {
-      const selectedVersion = versions[selectedVersionIdx];
-      // Call API to update the version with new pipeline spec
-      // await ApiService.updateModelVersion(selectedVersion.id, {
-      //   pipeline_spec: config,
-      //   status: 'configured'
-      // });
-      
-      // Update local state
-      const updatedVersions = [...versions];
-      updatedVersions[selectedVersionIdx] = {
-        ...selectedVersion,
+      const updated = await ApiService.updateModelVersion(editPipelineVersion.id, {
+        pipeline_spec: newConfig,
+        status: 'configured',
+      });
+      setVersions(prev => prev.map(v => v.id === updated.id ? updated : v));
+      setEditPipelineVersion(null);
+    } catch (err) {
+      console.error('Failed to save pipeline config:', err);
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  // ── Add version handlers ──────────────────────────────────────────────────
+
+  const handleAddVersionManual = (details) => {
+    setPendingVersionDetails(details);
+    setShowAddVersionWizard(false);
+    setShowNewVersionPipelineEditor(true);
+  };
+
+  const handleAddVersionGenerate = async (details) => {
+    // Create the version (no pipeline yet) — throws on API error, caught in wizard
+    const newVersion = await ApiService.createModelVersion(id, {
+      version_name: details.version_name,
+      commit_sha: details.commit_sha,
+      assets: { tflite: details.tflite_url },
+      changelog: details.changelog || null,
+      license_type: 'unknown',
+      is_commercial_safe: false,
+      is_hosted_by_us: false,
+      file_size_bytes: 0,
+    });
+
+    // Add to list and close wizard immediately
+    setVersions(prev => [...prev, newVersion]);
+    setShowAddVersionWizard(false);
+
+    // Trigger generation asynchronously — tracked in the table via generatingId
+    setGeneratingId(newVersion.id);
+    try {
+      const updated = await ApiService.generatePipeline(newVersion.id);
+      setVersions(prev => prev.map(v => v.id === updated.id ? updated : v));
+    } catch (err) {
+      setGenerateErrors(prev => ({
+        ...prev,
+        [newVersion.id]: err.response?.data?.detail || 'Pipeline generation failed.',
+      }));
+    } finally {
+      setGeneratingId(null);
+    }
+  };
+
+  const handleNewVersionPipelineSave = async (config) => {
+    try {
+      const newVersion = await ApiService.createModelVersion(id, {
+        version_name: pendingVersionDetails.version_name,
+        commit_sha: pendingVersionDetails.commit_sha,
+        assets: { tflite: pendingVersionDetails.tflite_url },
+        changelog: pendingVersionDetails.changelog || null,
+        license_type: 'unknown',
+        is_commercial_safe: false,
+        is_hosted_by_us: false,
+        file_size_bytes: 0,
         pipeline_spec: config,
-        status: 'configured'
-      };
-      setVersions(updatedVersions);
-      setShowPipelineEditor(false);
-      
-      // Show success message (you may want to add toast notifications)
-      console.log('Pipeline configuration saved successfully');
-    } catch (error) {
-      console.error('Failed to save pipeline configuration:', error);
+      });
+      setVersions(prev => [...prev, newVersion]);
+    } catch (err) {
+      setAddVersionError(err.response?.data?.detail || 'Failed to create version.');
     } finally {
-      setSavingPipeline(false);
+      setShowNewVersionPipelineEditor(false);
+      setPendingVersionDetails(null);
     }
   };
+
+  // ── Loading / not found ───────────────────────────────────────────────────
 
   if (loading) {
     return (
       <div className="flex justify-center items-center py-20">
-        <div className="animate-spin">
-          <div className="h-8 w-8 border-4 border-slate-200 border-t-primary-600 rounded-full" />
-        </div>
+        <div className="h-8 w-8 border-4 border-slate-200 border-t-primary-600 rounded-full animate-spin" />
       </div>
     );
   }
@@ -146,9 +218,7 @@ export const ModelDetailPage = () => {
       <div className="text-center py-20">
         <h2 className="text-2xl font-bold text-slate-900 mb-2">Model not found</h2>
         <p className="text-slate-600 mb-6">The model you're looking for doesn't exist.</p>
-        <Button variant="primary" onClick={() => navigate('/browse')}>
-          Browse Models
-        </Button>
+        <Button variant="primary" onClick={() => navigate('/browse')}>Browse Models</Button>
       </div>
     );
   }
@@ -160,12 +230,13 @@ export const ModelDetailPage = () => {
   };
 
   const rating = model.rating_weighted_avg?.toFixed(1) || '0.0';
-  const selectedVersion = versions[selectedVersionIdx];
-  const versionRating = selectedVersion?.rating_avg?.toFixed(1) || '0.0';
+
+  // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <div className="max-w-5xl mx-auto space-y-8">
-      {/* Header Section */}
+
+      {/* Header */}
       <div>
         <Button variant="outline" size="sm" onClick={() => navigate('/browse')} className="mb-4 self-start">
           <ArrowLeftIcon className="h-4 w-4" />
@@ -187,26 +258,21 @@ export const ModelDetailPage = () => {
               <Badge variant={model.category === 'diagnostic' ? 'primary' : 'slate'}>
                 {model.category}
               </Badge>
-              {parseFloat(rating) >= 4.0 && (
-                <Badge variant="warning">Popular</Badge>
-              )}
-              {model.hf_model_id && (
-                <Badge variant="slate">HF Synced</Badge>
-              )}
+              {parseFloat(rating) >= 4.0 && <Badge variant="warning">Popular</Badge>}
+              {model.hf_model_id && <Badge variant="slate">HF Synced</Badge>}
             </div>
 
             <h1 className="text-4xl font-bold text-slate-900 mb-4">{model.name}</h1>
             <p className="text-lg text-slate-600 mb-6 leading-relaxed">
-              {model.description || "No description provided."}
+              {model.description || 'No description provided.'}
             </p>
 
-            {/* Hugging Face Link */}
             {model.hf_model_id && (
               <div className="mb-6 p-4 bg-slate-50 border border-slate-200 rounded-lg flex items-center gap-3">
                 <LinkIcon className="h-5 w-5 text-slate-600 flex-shrink-0" />
                 <div className="flex-1">
                   <p className="text-sm text-slate-600">Available on Hugging Face</p>
-                  <a 
+                  <a
                     href={`https://huggingface.co/${model.hf_model_id}`}
                     target="_blank"
                     rel="noopener noreferrer"
@@ -218,7 +284,6 @@ export const ModelDetailPage = () => {
               </div>
             )}
 
-            {/* Stats Row */}
             <div className="flex flex-wrap gap-6 py-4 border-y border-slate-200">
               <div>
                 <p className="text-sm text-slate-600">Downloads</p>
@@ -229,13 +294,9 @@ export const ModelDetailPage = () => {
                 <div className="flex items-center gap-2">
                   <div className="flex gap-0.5">
                     {[...Array(5)].map((_, i) => (
-                      <div key={i}>
-                        {i < Math.round(parseFloat(rating)) ? (
-                          <StarSolidIcon className="h-5 w-5 text-accent-amber" />
-                        ) : (
-                          <StarOutlineIcon className="h-5 w-5 text-slate-300" />
-                        )}
-                      </div>
+                      i < Math.round(parseFloat(rating))
+                        ? <StarSolidIcon key={i} className="h-5 w-5 text-accent-amber" />
+                        : <StarOutlineIcon key={i} className="h-5 w-5 text-slate-300" />
                     ))}
                   </div>
                   <span className="font-semibold text-slate-900">{rating}</span>
@@ -251,45 +312,43 @@ export const ModelDetailPage = () => {
             </div>
           </div>
 
-          {/* Model Metadata Card */}
+          {/* Metadata Card */}
           <div className="w-full lg:w-80 flex-shrink-0">
             <div className="bg-white rounded-xl border border-slate-200 p-6 sticky top-20 space-y-4">
-              <div>
-                <h3 className="font-semibold text-slate-900 mb-3">Model Details</h3>
-                <div className="space-y-3 text-sm">
-                  {model.hf_model_id && (
-                    <div>
-                      <p className="text-slate-600">Hugging Face</p>
-                      <p className="font-medium text-slate-900 break-all">{model.hf_model_id}</p>
-                    </div>
-                  )}
+              <h3 className="font-semibold text-slate-900">Model Details</h3>
+              <div className="space-y-3 text-sm">
+                {model.hf_model_id && (
                   <div>
-                    <p className="text-slate-600">Category</p>
-                    <p className="font-medium text-slate-900 capitalize">{model.category}</p>
+                    <p className="text-slate-600">Hugging Face</p>
+                    <p className="font-medium text-slate-900 break-all">{model.hf_model_id}</p>
                   </div>
-                  {model.task && (
-                    <div>
-                      <p className="text-slate-600">Task</p>
-                      <p className="font-medium text-slate-900 capitalize">{model.task}</p>
-                    </div>
-                  )}
-                  <div>
-                    <p className="text-slate-600">License</p>
-                    <p className="font-medium text-slate-900 uppercase">{model.license_type}</p>
-                  </div>
-                  {model.tags && model.tags.length > 0 && (
-                    <div>
-                      <p className="text-slate-600 mb-2">Tags</p>
-                      <div className="flex flex-wrap gap-2">
-                        {model.tags.map((tag, idx) => (
-                          <span key={idx} className="px-2 py-1 bg-slate-100 text-slate-700 text-xs rounded">
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                )}
+                <div>
+                  <p className="text-slate-600">Category</p>
+                  <p className="font-medium text-slate-900 capitalize">{model.category}</p>
                 </div>
+                {model.task && (
+                  <div>
+                    <p className="text-slate-600">Task</p>
+                    <p className="font-medium text-slate-900 capitalize">{model.task}</p>
+                  </div>
+                )}
+                <div>
+                  <p className="text-slate-600">License</p>
+                  <p className="font-medium text-slate-900 uppercase">{model.license_type}</p>
+                </div>
+                {model.tags && model.tags.length > 0 && (
+                  <div>
+                    <p className="text-slate-600 mb-2">Tags</p>
+                    <div className="flex flex-wrap gap-2">
+                      {model.tags.map((tag, idx) => (
+                        <span key={idx} className="px-2 py-1 bg-slate-100 text-slate-700 text-xs rounded">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -297,207 +356,309 @@ export const ModelDetailPage = () => {
       </div>
 
       {/* Versions Section */}
-      {versions.length > 0 && (
-        <div className="space-y-6">
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-bold text-slate-900 mb-4">Versions</h2>
-            <p className="text-slate-600 mb-4">This model has {versions.length} available version{versions.length !== 1 ? 's' : ''}.</p>
+            <h2 className="text-2xl font-bold text-slate-900">Versions</h2>
+            <p className="text-sm text-slate-500 mt-0.5">
+              {versions.length} version{versions.length !== 1 ? 's' : ''}
+            </p>
           </div>
+          <Button variant="primary" size="sm" onClick={() => setShowAddVersionWizard(true)}>
+            <PlusIcon className="h-4 w-4" />
+            Add New Version
+          </Button>
+        </div>
 
-          {/* Version Selector — horizontal pill tabs */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-2">
-            {versions.map((version, idx) => (
-              <button
-                key={idx}
-                onClick={() => { setSelectedVersionIdx(idx); setGenerateError(null); }}
-                className={`flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all ${
-                  selectedVersionIdx === idx
-                    ? 'bg-primary-600 text-white shadow-sm'
-                    : 'border border-slate-200 text-slate-700 hover:border-primary-300 hover:text-primary-600'
-                }`}
-              >
-                <span>v{version.version_name || version.version_string}</span>
-                <span className={selectedVersionIdx === idx ? 'text-primary-200' : 'text-slate-400'}>
-                  · {version.download_count} ⬇
-                </span>
-                {version.is_supported && (
-                  <CheckBadgeIcon className={`h-4 w-4 flex-shrink-0 ${selectedVersionIdx === idx ? 'text-primary-200' : 'text-accent-lime'}`} />
-                )}
-              </button>
-            ))}
+        {addVersionError && (
+          <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+            <ExclamationTriangleIcon className="h-4 w-4 flex-shrink-0" />
+            <span className="flex-1">{addVersionError}</span>
+            <button onClick={() => setAddVersionError(null)} className="text-red-400 hover:text-red-600">
+              <XMarkIcon className="h-4 w-4" />
+            </button>
           </div>
+        )}
 
-          {/* Selected Version Details */}
-          {selectedVersion && (
-            <div className="bg-white rounded-xl border border-slate-200 p-8 space-y-8">
-              {/* Version Header */}
-              <div className="border-b border-slate-200 pb-6">
-                <div className="flex items-start justify-between mb-4">
-                  <div>
-                    <h3 className="text-2xl font-bold text-slate-900">Version {selectedVersion.version_name || selectedVersion.version_string}</h3>
-                    <p className="text-slate-600 text-sm mt-2">
-                      Released {new Date(selectedVersion.published_at).toLocaleDateString()}
-                    </p>
-                  </div>
-                </div>
+        {versions.length === 0 ? (
+          <div className="py-16 text-center border-2 border-dashed border-slate-200 rounded-xl">
+            <p className="text-slate-500 mb-4">No versions yet.</p>
+            <Button variant="outline" size="sm" onClick={() => setShowAddVersionWizard(true)}>
+              <PlusIcon className="h-4 w-4" />
+              Add First Version
+            </Button>
+          </div>
+        ) : (
+          <div className="overflow-hidden border border-slate-200 rounded-xl">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 border-b border-slate-200">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Version</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Released</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Pipeline</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {versions.map((version) => {
+                  const isSupported     = version.status === 'supported';
+                  const isGenerating    = generatingId === version.id;
+                  const isDeleting      = deletingId === version.id;
+                  const isDeleteConfirm = deleteConfirmId === version.id;
+                  const versionError    = generateErrors[version.id];
 
-                {selectedVersion.changelog && (
-                  <div>
-                    <h4 className="font-medium text-slate-900 mb-2">Changelog</h4>
-                    <p className="text-slate-700">{selectedVersion.changelog}</p>
-                  </div>
-                )}
-              </div>
+                  return (
+                    <React.Fragment key={version.id}>
+                      {/* Delete confirmation row */}
+                      {isDeleteConfirm ? (
+                        <tr className="bg-red-50">
+                          <td colSpan={5} className="px-4 py-3">
+                            <div className="flex items-center gap-3 flex-wrap">
+                              <ExclamationTriangleIcon className="h-4 w-4 text-red-600 flex-shrink-0" />
+                              <span className="text-sm text-red-800 flex-1">
+                                Permanently delete version <strong className="font-mono">v{version.version_name}</strong>? This cannot be undone.
+                                {deleteError && <span className="ml-2 text-red-600">{deleteError}</span>}
+                              </span>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => { setDeleteConfirmId(null); setDeleteError(null); }}
+                                disabled={isDeleting}
+                              >
+                                Cancel
+                              </Button>
+                              <Button
+                                variant="danger"
+                                size="sm"
+                                onClick={() => handleDeleteVersion(version)}
+                                isLoading={isDeleting}
+                              >
+                                Delete
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ) : (
+                        /* Normal version row */
+                        <tr className="hover:bg-slate-50 transition-colors">
+                          {/* Version name + downloads */}
+                          <td className="px-4 py-3">
+                            <span className="font-mono font-medium text-slate-900">
+                              v{version.version_name}
+                            </span>
+                            {version.download_count > 0 && (
+                              <span className="ml-2 text-xs text-slate-400">
+                                {version.download_count} ⬇
+                              </span>
+                            )}
+                            {version.changelog && (
+                              <p className="text-xs text-slate-400 mt-0.5 truncate max-w-xs">
+                                {version.changelog}
+                              </p>
+                            )}
+                          </td>
 
-              {/* Pipeline Configuration */}
-              {selectedVersion && (
-                <div>
-                  <PipelineConfigViewer
-                    pipelineSpec={selectedVersion.pipeline_spec}
-                    onEdit={() => setShowPipelineEditor(true)}
-                    isEditable={true}
-                  />
-                </div>
-              )}
+                          {/* Released date */}
+                          <td className="px-4 py-3 text-slate-500 whitespace-nowrap">
+                            {new Date(version.published_at).toLocaleDateString()}
+                          </td>
 
-              {/* Pipeline Verification Status */}
+                          {/* Status badge */}
+                          <td className="px-4 py-3">
+                            {isGenerating ? (
+                              <span className="inline-flex items-center gap-1.5 text-xs text-slate-500">
+                                <ArrowPathIcon className="h-3.5 w-3.5 animate-spin" />
+                                Generating…
+                              </span>
+                            ) : (
+                              <Badge
+                                variant={STATUS_BADGE[version.status] ?? 'slate'}
+                                title={STATUS_TOOLTIP[version.status]}
+                              >
+                                {version.status}
+                              </Badge>
+                            )}
+                          </td>
+
+                          {/* Pipeline link + last updated */}
+                          <td className="px-4 py-3">
+                            {(() => {
+                              const isFailure = version.status === 'broken' || version.status === 'unsupported';
+                              const isShowingReason = showReasonVersionId === version.id;
+                              return (
+                                <div className="space-y-1">
+                                  {version.pipeline_spec && (
+                                    <div className="space-y-0.5">
+                                      <button
+                                        onClick={() => setViewPipelineVersion(version)}
+                                        className="inline-flex items-center gap-1 text-primary-600 hover:text-primary-700 font-medium text-sm"
+                                      >
+                                        <EyeIcon className="h-4 w-4" />
+                                        View
+                                      </button>
+                                      {version.pipeline_updated_at && (
+                                        <p className="text-xs text-slate-400">
+                                          Updated {new Date(version.pipeline_updated_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
+                                        </p>
+                                      )}
+                                    </div>
+                                  )}
+                                  {isFailure && (
+                                    <button
+                                      onClick={() => setShowReasonVersionId(isShowingReason ? null : version.id)}
+                                      title={isShowingReason ? 'Hide reason' : 'Click to see failure reason'}
+                                      className="text-left"
+                                    >
+                                      <Badge
+                                        variant="danger"
+                                        className={`cursor-pointer underline decoration-dotted underline-offset-2 ${isShowingReason ? 'ring-2 ring-red-400 ring-offset-1' : ''}`}
+                                      >
+                                        Failed to generate
+                                      </Badge>
+                                    </button>
+                                  )}
+                                  {!version.pipeline_spec && !isFailure && (
+                                    <span className="text-slate-300">—</span>
+                                  )}
+                                </div>
+                              );
+                            })()}
+                          </td>
+
+                          {/* Action buttons */}
+                          <td className="px-4 py-3">
+                            <div className="flex items-center justify-end gap-0.5">
+                              <button
+                                onClick={() => handleRegenerate(version)}
+                                disabled={isSupported || isGenerating || generatingId !== null}
+                                title={isSupported ? 'Cannot regenerate a supported version' : 'Regenerate pipeline with AI'}
+                                className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                              >
+                                <ArrowPathIcon className="h-4 w-4" />
+                              </button>
+                              <button
+                                onClick={() => setEditPipelineVersion(version)}
+                                disabled={isSupported || isGenerating}
+                                title={isSupported ? 'Cannot edit a supported version' : 'Edit pipeline configuration'}
+                                className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                              >
+                                <PencilSquareIcon className="h-4 w-4" />
+                              </button>
+                              <button
+                                onClick={() => { setDeleteConfirmId(version.id); setDeleteError(null); }}
+                                disabled={isDeleting}
+                                title="Delete this version"
+                                className="p-1.5 rounded-lg hover:bg-red-50 text-slate-500 hover:text-red-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                              >
+                                <TrashIcon className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+
+                      {/* Failure reason row (broken / unsupported) */}
+                      {showReasonVersionId === version.id && version.unsupported_reason && (
+                        <tr className="bg-red-50">
+                          <td colSpan={5} className="px-4 py-3">
+                            <div className="flex items-start gap-2 text-sm text-red-800">
+                              <ExclamationTriangleIcon className="h-4 w-4 flex-shrink-0 mt-0.5 text-red-500" />
+                              <div>
+                                <p className="font-medium text-red-900 mb-0.5">Generation failure reason</p>
+                                <p className="text-red-700">{version.unsupported_reason}</p>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+
+                      {/* Per-row generate error */}
+                      {versionError && (
+                        <tr className="bg-red-50">
+                          <td colSpan={5} className="px-4 py-2">
+                            <div className="flex items-center gap-2 text-xs text-red-700">
+                              <ExclamationTriangleIcon className="h-3.5 w-3.5 flex-shrink-0" />
+                              <span className="flex-1">{versionError}</span>
+                              <button
+                                onClick={() => setGenerateErrors(prev => {
+                                  const { [version.id]: _, ...rest } = prev;
+                                  return rest;
+                                })}
+                                className="text-red-400 hover:text-red-600"
+                              >
+                                Dismiss
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* View Pipeline Modal */}
+      {viewPipelineVersion && (
+        <div
+          className="fixed inset-0 bg-black/50 flex items-start justify-center z-50 p-4 overflow-y-auto"
+          onClick={e => { if (e.target === e.currentTarget) setViewPipelineVersion(null); }}
+        >
+          <div className="bg-white rounded-xl shadow-2xl max-w-3xl w-full mt-8 mb-8">
+            <div className="flex items-center justify-between px-8 py-5 border-b border-slate-200">
               <div>
-                <h3 className="text-lg font-bold text-slate-900 mb-4">Pipeline Verification</h3>
-                {selectedVersion.is_supported ? (
-                  <div className="p-4 bg-green-50 border border-green-200 rounded-lg flex items-start gap-3">
-                    <CheckCircleIcon className="h-6 w-6 text-accent-lime flex-shrink-0 mt-0.5" />
-                    <div>
-                      <h4 className="font-semibold text-green-900">Pipeline Verified</h4>
-                      <p className="text-sm text-green-800 mt-1">
-                        This model version has a verified pipeline configuration.
-                      </p>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
-                    <ExclamationTriangleIcon className="h-6 w-6 text-red-600 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <h4 className="font-semibold text-red-900">Pipeline Not Verified</h4>
-                      <p className="text-sm text-red-800 mt-1">
-                        {selectedVersion.unsupported_reason || "This model version does not have a verified pipeline configuration."}
-                      </p>
-                    </div>
-                  </div>
-                )}
+                <h2 className="text-lg font-bold text-slate-900">Pipeline Configuration</h2>
+                <p className="text-sm text-slate-500 mt-0.5 font-mono">v{viewPipelineVersion.version_name}</p>
               </div>
-
-              {/* Version Stats */}
-              <div className={`grid grid-cols-1 gap-4 ${formatFileSize(selectedVersion.file_size_bytes) ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}>
-                <div className="p-4 bg-slate-50 rounded-lg">
-                  <p className="text-sm text-slate-600 mb-2">Downloads</p>
-                  <p className="text-2xl font-bold text-slate-900">{selectedVersion.download_count}</p>
-                </div>
-                <div className="p-4 bg-slate-50 rounded-lg">
-                  <p className="text-sm text-slate-600 mb-2">Rating</p>
-                  <div className="flex items-center gap-2">
-                    <div className="flex gap-0.5">
-                      {[...Array(5)].map((_, i) => (
-                        <div key={i}>
-                          {i < Math.round(parseFloat(versionRating)) ? (
-                            <StarSolidIcon className="h-4 w-4 text-accent-amber" />
-                          ) : (
-                            <StarOutlineIcon className="h-4 w-4 text-slate-300" />
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                    <span className="font-semibold text-slate-900">{versionRating}</span>
-                  </div>
-                  <p className="text-xs text-slate-600 mt-1">({selectedVersion.num_ratings} ratings)</p>
-                </div>
-                {formatFileSize(selectedVersion.file_size_bytes) && (
-                  <div className="p-4 bg-slate-50 rounded-lg">
-                    <p className="text-sm text-slate-600 mb-2">File Size</p>
-                    <p className="text-2xl font-bold text-slate-900">{formatFileSize(selectedVersion.file_size_bytes)}</p>
-                  </div>
-                )}
-              </div>
-
-              {/* Pipeline Actions */}
-              <div className="border-t border-slate-200 pt-6 space-y-3">
-                <div className="flex gap-3">
-                  <Button
-                    variant="primary"
-                    size="lg"
-                    className="flex-1 justify-center gap-2"
-                    onClick={handleGeneratePipeline}
-                    disabled={generatingPipeline}
-                  >
-                    <ArrowPathIcon className={`h-5 w-5 ${generatingPipeline ? 'animate-spin' : ''}`} />
-                    {generatingPipeline ? 'Generating…' : 'Generate Pipeline'}
-                  </Button>
-                  {selectedVersion.status === 'unconfigured' && (
-                    <Button
-                      variant="outline"
-                      size="lg"
-                      className="flex-1 justify-center gap-2"
-                      onClick={() => setShowPipelineEditor(true)}
-                    >
-                      <SparklesIcon className="h-5 w-5" />
-                      Create Manually
-                    </Button>
-                  )}
-                </div>
-                {generateError && (
-                  <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-                    <ExclamationTriangleIcon className="h-4 w-4 flex-shrink-0 mt-0.5" />
-                    {generateError}
-                  </div>
-                )}
-                {selectedVersion.pipeline_spec && (
-                  <div className="space-y-2 pt-2">
-                    {showDeleteConfirm ? (
-                      <div className="flex items-center gap-3 p-3 bg-red-50 border border-red-200 rounded-lg">
-                        <p className="text-sm text-red-800 flex-1">Delete this pipeline configuration?</p>
-                        <Button variant="ghost" size="sm" onClick={() => setShowDeleteConfirm(false)}>
-                          Cancel
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="border-red-400 text-red-700 hover:bg-red-100"
-                          onClick={handleDeletePipeline}
-                          disabled={deletingPipeline}
-                        >
-                          {deletingPipeline ? 'Deleting…' : 'Delete'}
-                        </Button>
-                      </div>
-                    ) : (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex items-center gap-2 text-red-600 border-red-200 hover:bg-red-50"
-                        onClick={() => setShowDeleteConfirm(true)}
-                      >
-                        <TrashIcon className="h-4 w-4" />
-                        Delete Configuration
-                      </Button>
-                    )}
-                    {deleteError && (
-                      <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-                        <ExclamationTriangleIcon className="h-4 w-4 flex-shrink-0 mt-0.5" />
-                        {deleteError}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
+              <button
+                onClick={() => setViewPipelineVersion(null)}
+                className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors"
+              >
+                <XMarkIcon className="h-5 w-5 text-slate-500" />
+              </button>
             </div>
-          )}
+            <div className="p-8">
+              <PipelineConfigViewer
+                pipelineSpec={viewPipelineVersion.pipeline_spec}
+                isEditable={false}
+              />
+            </div>
+          </div>
         </div>
       )}
 
-      {/* Pipeline Configuration Wizard Modal */}
-      {showPipelineEditor && (
+      {/* Edit Pipeline Modal */}
+      {editPipelineVersion && (
         <PipelineConfigWizard
-          initialConfig={versions[selectedVersionIdx]?.pipeline_spec}
-          onSave={handleSavePipelineConfig}
-          onCancel={() => setShowPipelineEditor(false)}
+          initialConfig={editPipelineVersion.pipeline_spec}
+          onSave={handleEditPipelineSave}
+          onCancel={() => setEditPipelineVersion(null)}
+        />
+      )}
+
+      {/* Add Version Wizard */}
+      {showAddVersionWizard && (
+        <AddVersionWizard
+          hfModelId={model.hf_model_id}
+          onCreateManual={handleAddVersionManual}
+          onCreateAndGenerate={handleAddVersionGenerate}
+          onCancel={() => setShowAddVersionWizard(false)}
+        />
+      )}
+
+      {/* New Version Pipeline Editor (manual path) */}
+      {showNewVersionPipelineEditor && (
+        <PipelineConfigWizard
+          initialConfig={null}
+          onSave={handleNewVersionPipelineSave}
+          onCancel={() => {
+            setShowNewVersionPipelineEditor(false);
+            setPendingVersionDetails(null);
+          }}
         />
       )}
     </div>
