@@ -1,10 +1,10 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowDownTrayIcon, RectangleStackIcon } from '@heroicons/react/24/outline';
+import { ArrowDownTrayIcon, RectangleStackIcon, LockClosedIcon } from '@heroicons/react/24/outline';
 import { StarIcon as StarSolidIcon } from '@heroicons/react/24/solid';
 import Badge from './Badge';
 
-export const ModelCard = ({ model }) => {
+export const ModelCard = ({ model, from = 'browse' }) => {
   const getCategoryColor = (category) => {
     const colors = {
       'Object Detection': 'primary',
@@ -41,19 +41,28 @@ export const ModelCard = ({ model }) => {
   return (
     <Link
       to={`/models/${model.id}`}
+      state={{ from }}
       className={`group block bg-white rounded-xl border border-slate-200 shadow-card hover:shadow-card-hover hover:border-primary-300 transition-all duration-300 ease-smooth border-t-4 ${getBorderColor(model.category)} hover:-translate-y-1`}
     >
       <div className="p-4 space-y-2">
-        {/* Row 1: task (left) + category (right) */}
+        {/* Row 1: task (left) + badges (right) */}
         <div className="flex items-center justify-between gap-2">
           <p className="text-base font-bold text-slate-900 truncate">
             {taskLabel ?? '—'}
           </p>
-          <div className="flex items-center gap-1 flex-shrink-0 text-xs text-slate-500">
-            <span>Category:</span>
-            <Badge variant={getCategoryColor(model.category)} className="text-xs">
-              {model.category}
-            </Badge>
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            {model.is_public === false && (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-600">
+                <LockClosedIcon className="h-3 w-3" />
+                Private
+              </span>
+            )}
+            <div className="flex items-center gap-1 text-xs text-slate-500">
+              <span>Category:</span>
+              <Badge variant={getCategoryColor(model.category)} className="text-xs">
+                {model.category}
+              </Badge>
+            </div>
           </div>
         </div>
 

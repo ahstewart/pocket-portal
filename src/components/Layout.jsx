@@ -14,9 +14,10 @@ export const Layout = ({ children }) => {
 
   // Navigation links
   const navLinks = [
-    { label: 'Home', path: '/', exact: true },
-    { label: 'Browse Models', path: '/browse', exact: false },
-    ...(user ? [{ label: 'Dashboard', path: '/dashboard', exact: false }] : []),
+    { label: 'Home',        path: '/',            exact: true  },
+    { label: 'Browse',      path: '/browse',      exact: false },
+    { label: 'Get Started', path: '/get-started', exact: false },
+    { label: 'Docs',        path: '/docs',        exact: false },
   ];
 
   const isActive = (path, exact) => {
@@ -92,16 +93,6 @@ export const Layout = ({ children }) => {
                 </>
               ) : (
                 <>
-                  <Button 
-                    variant="primary"
-                    size="sm"
-                    className="hidden sm:flex gap-2"
-                    onClick={() => navigate('/models/create')}
-                  >
-                    <PlusIcon className="h-4 w-4" />
-                    <span>New Model</span>
-                  </Button>
-
                   {/* User Menu */}
                   <div className="relative">
                     <button 
@@ -118,6 +109,26 @@ export const Layout = ({ children }) => {
                           <p className="text-xs text-slate-600">Signed in as</p>
                           <p className="text-sm font-medium text-slate-900 truncate">{user?.email}</p>
                         </div>
+                        <button
+                          onClick={() => { navigate('/models/create'); setUserMenuOpen(false); }}
+                          className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                        >
+                          <div className="flex items-center gap-2">
+                            <PlusIcon className="h-4 w-4" />
+                            New Model
+                          </div>
+                        </button>
+                        <div className="border-t border-slate-100 my-1" />
+                        <Link
+                          to="/dashboard"
+                          onClick={() => setUserMenuOpen(false)}
+                          className="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                        >
+                          <div className="flex items-center gap-2">
+                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25A2.25 2.25 0 0 1 13.5 18v-2.25Z" /></svg>
+                            Dashboard
+                          </div>
+                        </Link>
                         <Link
                           to="/profile"
                           onClick={() => setUserMenuOpen(false)}
@@ -171,18 +182,7 @@ export const Layout = ({ children }) => {
                   {link.label}
                 </Link>
               ))}
-              {user ? (
-                <button 
-                  onClick={() => {
-                    navigate('/models/create');
-                    setMobileMenuOpen(false);
-                  }}
-                  className="w-full flex items-center justify-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 transition text-sm font-medium mt-3"
-                >
-                  <PlusIcon className="h-4 w-4" />
-                  New Model
-                </button>
-              ) : (
+              {!user && (
                 <>
                   <Link
                     to="/auth/login"
@@ -228,7 +228,8 @@ export const Layout = ({ children }) => {
               <ul className="space-y-2 text-sm">
                 <li><Link to="/" className="text-slate-400 hover:text-white transition">Home</Link></li>
                 <li><Link to="/browse" className="text-slate-400 hover:text-white transition">Browse Models</Link></li>
-                {user && <li><Link to="/dashboard" className="text-slate-400 hover:text-white transition">Dashboard</Link></li>}
+                <li><Link to="/get-started" className="text-slate-400 hover:text-white transition">Get Started</Link></li>
+                <li><Link to="/docs" className="text-slate-400 hover:text-white transition">Docs</Link></li>
               </ul>
             </div>
             <div>

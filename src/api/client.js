@@ -45,8 +45,8 @@ export const ApiService = {
     return response.data;
   },
 
-  createModel: async (modelId, data) => {
-    const response = await api.post(`/models/${modelId}`, data);
+  createModel: async (data) => {
+    const response = await api.post('/models', data);
     return response.data;
   },
 

@@ -7,6 +7,8 @@ import { BrowseModelsPage } from './pages/BrowseModelsPage';
 import { UploadModelPage } from './pages/UploadModelPage';
 import { ModelDetailPage } from './pages/ModelDetailPage';
 import { DashboardPage } from './pages/DashboardPage';
+import { DocsPage } from './pages/DocsPage';
+import { GetStartedPage } from './pages/GetStartedPage';
 import { LoginPage } from './pages/LoginPage';
 import { SignupPage } from './pages/SignupPage';
 import { ProfilePage } from './pages/ProfilePage';
@@ -26,6 +28,8 @@ function App() {
           >
             <Route path="/" element={<HomePage />} />
             <Route path="/browse" element={<BrowseModelsPage />} />
+            <Route path="/docs" element={<DocsPage />} />
+            <Route path="/get-started" element={<GetStartedPage />} />
             <Route path="/models/:id" element={<ModelDetailPage />} />
             
             {/* Protected Routes */}

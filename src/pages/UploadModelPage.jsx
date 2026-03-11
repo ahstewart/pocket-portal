@@ -1,757 +1,791 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Button from '../components/Button';
 import HuggingFaceSearch from '../components/HuggingFaceSearch';
-import { ArrowUpTrayIcon, CheckCircleIcon, SparklesIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
+import { PipelineConfigWizard } from '../components/PipelineConfigWizard';
+import { supabase } from '../lib/supabase';
+import { ApiService } from '../api/client';
+import {
+  ArrowUpTrayIcon,
+  CheckCircleIcon,
+  SparklesIcon,
+  ChevronRightIcon,
+  DocumentIcon,
+  GlobeAltIcon,
+  LockClosedIcon,
+  XMarkIcon,
+  ArrowPathIcon,
+  PencilSquareIcon,
+  CpuChipIcon,
+} from '@heroicons/react/24/outline';
+
+const MODEL_FILES_BUCKET = 'model-files';
+
+const generateShortId = () =>
+  Array.from(crypto.getRandomValues(new Uint8Array(4)))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+
+const fetchHFTfliteFiles = async (hfModelId) => {
+  const res = await fetch(`https://huggingface.co/api/models/${hfModelId}`);
+  if (!res.ok) throw new Error(`Could not fetch HF repo files (HTTP ${res.status})`);
+  const data = await res.json();
+  return (data.siblings || [])
+    .filter(s => s.rfilename.endsWith('.tflite'))
+    .map(s => ({
+      filename: s.rfilename,
+      url: `https://huggingface.co/${hfModelId}/resolve/main/${s.rfilename}`,
+      size_bytes: s.size ?? 0,
+    }));
+};
+
+const formatBytes = (bytes) => {
+  if (!bytes) return '';
+  if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(1)} GB`;
+  if (bytes >= 1024 ** 2) return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
+  return `${(bytes / 1024).toFixed(1)} KB`;
+};
+
+const STEP_LABELS = ['Model Info', 'Version', 'Model File', 'Pipeline'];
+
+const StepProgress = ({ current }) => (
+  <div className="mb-8">
+    <div className="flex items-center justify-between">
+      {STEP_LABELS.map((label, idx) => {
+        const step = idx + 1;
+        const done = current > step;
+        const active = current === step;
+        return (
+          <React.Fragment key={step}>
+            <div className="flex flex-col items-center gap-1.5">
+              <div className={`w-9 h-9 rounded-full flex items-center justify-center font-semibold text-sm transition-colors ${
+                done    ? 'bg-primary-600 text-white' :
+                active  ? 'bg-primary-600 text-white ring-4 ring-primary-100' :
+                          'bg-slate-200 text-slate-500'
+              }`}>
+                {done ? <CheckCircleIcon className="h-5 w-5" /> : step}
+              </div>
+              <span className={`text-xs font-medium ${active ? 'text-primary-700' : 'text-slate-500'}`}>
+                {label}
+              </span>
+            </div>
+            {idx < STEP_LABELS.length - 1 && (
+              <div className={`flex-1 h-0.5 mx-3 mb-5 transition-colors ${current > step ? 'bg-primary-600' : 'bg-slate-200'}`} />
+            )}
+          </React.Fragment>
+        );
+      })}
+    </div>
+  </div>
+);
 
 export const UploadModelPage = () => {
   const navigate = useNavigate();
+  const fileInputRef = useRef(null);
+
   const [showHFSearch, setShowHFSearch] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
-  const [success, setSuccess] = useState(false);
-  const [error, setError] = useState('');
+  const [submitError, setSubmitError] = useState('');
+  // Creation progress overlay: null = hidden, array of step objects = visible
+  const [progressSteps, setProgressSteps] = useState(null);
 
-  // ==========================================
-  // STEP 1: MODEL METADATA
-  // ==========================================
-  const [modelMetadata, setModelMetadata] = useState({
-    name: '',
-    description: '',
-    category: 'utility',
-    tags: [],
-    task: '',
-    license_type: 'unknown',
-    hf_model_id: '',
+  // ── Step 1: Model metadata ─────────────────────────────────────────────────
+  const [meta, setMeta] = useState({
+    name: '', description: '', category: 'utility',
+    task: '', tags: '', license_type: 'unknown',
+    hf_model_id: '', is_public: true,
   });
+  const [metaErrors, setMetaErrors] = useState({});
 
-  // ==========================================
-  // STEP 2: MODEL VERSION INFO
-  // ==========================================
-  const [versionInfo, setVersionInfo] = useState({
-    version_string: '1.0.0',
-    changelog: '',
-  });
+  // ── Step 2: Version details ────────────────────────────────────────────────
+  const [version, setVersion] = useState({ version_name: '1.0.0', changelog: '' });
+  const [versionErrors, setVersionErrors] = useState({});
 
-  // ==========================================
-  // STEP 3: ASSETS (File Pointers)
-  // ==========================================
-  const [assets, setAssets] = useState([
-    {
-      asset_key: 'model_file',
-      asset_type: 'tflite',
-      source_url: '',
-      file_size_bytes: 0,
-      file_hash: '',
-      is_hosted_by_us: false,
-    }
-  ]);
+  // ── Step 3: Model file ─────────────────────────────────────────────────────
+  const [fileMode, setFileMode] = useState('upload'); // 'upload' | 'hf'
+  const [uploadedFile, setUploadedFile] = useState(null);
+  const [hfFiles, setHfFiles] = useState([]);
+  const [loadingHfFiles, setLoadingHfFiles] = useState(false);
+  const [hfFilesError, setHfFilesError] = useState(null);
+  const [selectedHfFile, setSelectedHfFile] = useState(null);
+  const [fileError, setFileError] = useState('');
 
-  // ==========================================
-  // STEP 4: PIPELINE CONFIGURATION
-  // ==========================================
-  const [pipelineConfig, setPipelineConfig] = useState({
-    input_nodes: [],
-    output_nodes: [],
-    pre_processing: [],
-    post_processing: [],
-    asset_map: {},
-  });
+  // ── Step 4: Pipeline ───────────────────────────────────────────────────────
+  // pipelineChoice: 'manual' | 'generate' | 'skip'
+  const [pipelineChoice, setPipelineChoice] = useState(null);
+  const [showPipelineWizard, setShowPipelineWizard] = useState(false);
+  const [pipelineConfig, setPipelineConfig] = useState(null); // set after manual edit
 
-  const categories = [
-    { value: 'utility', label: 'Utility' },
-    { value: 'diagnostic', label: 'Diagnostic' },
-    { value: 'performance', label: 'Performance' },
-    { value: 'fun', label: 'Fun' },
-    { value: 'other', label: 'Other' }
-  ];
+  // ── HF file loading ────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!meta.hf_model_id.trim()) { setHfFiles([]); return; }
+    setLoadingHfFiles(true);
+    setHfFilesError(null);
+    fetchHFTfliteFiles(meta.hf_model_id.trim())
+      .then(files => {
+        setHfFiles(files);
+        if (files.length === 1) setSelectedHfFile(files[0]);
+        else setSelectedHfFile(null);
+      })
+      .catch(err => setHfFilesError(err.message))
+      .finally(() => setLoadingHfFiles(false));
+  }, [meta.hf_model_id]);
 
-  const assetTypes = [
-    { value: 'tflite', label: 'TFLite Model' },
-    { value: 'label_txt', label: 'Label File' },
-    { value: 'vocab_txt', label: 'Vocabulary File' },
-    { value: 'config_json', label: 'Config JSON' },
-  ];
+  useEffect(() => {
+    if (hfFiles.length > 0) setFileMode('hf');
+  }, [hfFiles]);
 
-  const licenseOptions = [
-    { value: 'apache-2.0', label: 'Apache 2.0' },
-    { value: 'mit', label: 'MIT' },
-    { value: 'bsd', label: 'BSD' },
-    { value: 'cc-by-4.0', label: 'CC BY 4.0' },
-    { value: 'cc-by-sa-4.0', label: 'CC BY-SA 4.0' },
-    { value: 'openrail', label: 'OpenRAIL' },
-    { value: 'gpl-3.0', label: 'GPL 3.0' },
-    { value: 'unknown', label: 'Unknown' },
-  ];
-
+  // ── HF search autofill ─────────────────────────────────────────────────────
   const handleHFModelSelect = (hfModelData) => {
-    setModelMetadata(prev => ({
+    setMeta(prev => ({
       ...prev,
       name: hfModelData.name || prev.name,
       description: hfModelData.description || prev.description,
       category: hfModelData.category || prev.category,
-      tags: hfModelData.tags || prev.tags,
+      tags: Array.isArray(hfModelData.tags) ? hfModelData.tags.join(', ') : prev.tags,
       task: hfModelData.task || prev.task,
       hf_model_id: hfModelData.hf_model_id || prev.hf_model_id,
     }));
   };
 
-  const handleAddAsset = () => {
-    setAssets(prev => [
-      ...prev,
-      {
-        asset_key: '',
-        asset_type: 'tflite',
-        source_url: '',
-        file_size_bytes: 0,
-        file_hash: '',
-        is_hosted_by_us: false,
-      }
-    ]);
+  // ── Validation ─────────────────────────────────────────────────────────────
+  const validateMeta = () => {
+    const e = {};
+    if (!meta.name.trim()) e.name = 'Model name is required';
+    if (!meta.description.trim()) e.description = 'Description is required';
+    setMetaErrors(e);
+    return Object.keys(e).length === 0;
   };
 
-  const handleUpdateAsset = (index, field, value) => {
-    setAssets(prev => {
-      const updated = [...prev];
-      updated[index] = { ...updated[index], [field]: value };
-      return updated;
-    });
+  const validateVersion = () => {
+    const e = {};
+    if (!version.version_name.trim()) e.version_name = 'Version name is required';
+    setVersionErrors(e);
+    return Object.keys(e).length === 0;
   };
 
-  const handleRemoveAsset = (index) => {
-    setAssets(prev => prev.filter((_, i) => i !== index));
+  const validateFile = () => {
+    if (fileMode === 'upload' && !uploadedFile) {
+      setFileError('Please select a .tflite file to upload');
+      return false;
+    }
+    if (fileMode === 'hf' && !selectedHfFile) {
+      setFileError('Please select a model file from the list');
+      return false;
+    }
+    setFileError('');
+    return true;
   };
 
-  const handleAddPreProcessingStep = () => {
-    setPipelineConfig(prev => ({
-      ...prev,
-      pre_processing: [
-        ...prev.pre_processing,
-        { step_name: '', params: {} }
-      ]
-    }));
+  // ── Navigation ─────────────────────────────────────────────────────────────
+  const goNext = () => {
+    if (currentStep === 1 && !validateMeta()) return;
+    if (currentStep === 2 && !validateVersion()) return;
+    if (currentStep === 3 && !validateFile()) return;
+    setCurrentStep(s => s + 1);
   };
 
-  const handleAddPostProcessingStep = () => {
-    setPipelineConfig(prev => ({
-      ...prev,
-      post_processing: [
-        ...prev.post_processing,
-        { step_name: '', params: {} }
-      ]
-    }));
+  // ── File input handler ─────────────────────────────────────────────────────
+  const handleFileSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.name.endsWith('.tflite')) { setFileError('Only .tflite files are supported'); return; }
+    setUploadedFile(file);
+    setFileError('');
   };
 
-  const handleUpdatePipelineInputNode = (index, value) => {
-    setPipelineConfig(prev => {
-      const updated = [...prev.input_nodes];
-      updated[index] = value;
-      return { ...prev, input_nodes: updated };
-    });
+  // ── Pipeline wizard handlers ───────────────────────────────────────────────
+  const handlePipelineWizardSave = (config) => {
+    setPipelineConfig(config);
+    setShowPipelineWizard(false);
+    setPipelineChoice('manual');
   };
 
-  const handleUpdatePipelineOutputNode = (index, value) => {
-    setPipelineConfig(prev => {
-      const updated = [...prev.output_nodes];
-      updated[index] = value;
-      return { ...prev, output_nodes: updated };
-    });
-  };
-
-  const handleAddInputNode = () => {
-    setPipelineConfig(prev => ({
-      ...prev,
-      input_nodes: [...prev.input_nodes, '']
-    }));
-  };
-
-  const handleAddOutputNode = () => {
-    setPipelineConfig(prev => ({
-      ...prev,
-      output_nodes: [...prev.output_nodes, '']
-    }));
-  };
-
-  const handleRemoveInputNode = (index) => {
-    setPipelineConfig(prev => ({
-      ...prev,
-      input_nodes: prev.input_nodes.filter((_, i) => i !== index)
-    }));
-  };
-
-  const handleRemoveOutputNode = (index) => {
-    setPipelineConfig(prev => ({
-      ...prev,
-      output_nodes: prev.output_nodes.filter((_, i) => i !== index)
-    }));
-  };
-
-  const canProceedToStep2 = () => {
-    return modelMetadata.name.trim() && modelMetadata.description.trim();
-  };
-
-  const canProceedToStep3 = () => {
-    return versionInfo.version_string.trim();
-  };
-
-  const canProceedToStep4 = () => {
-    return assets.length > 0 && assets.every(a => a.asset_key && a.source_url);
-  };
-
-  const canCreateModel = () => {
-    return canProceedToStep4() && pipelineConfig.input_nodes.length > 0 && pipelineConfig.output_nodes.length > 0;
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    
-    if (!canCreateModel()) {
-      setError('Please complete all required fields');
+  // ── Submit ─────────────────────────────────────────────────────────────────
+  const handleSubmit = async () => {
+    if (!pipelineChoice) {
+      setSubmitError('Please choose a pipeline option.');
       return;
     }
+    setSubmitError('');
+
+    // Build the step list for the progress overlay
+    const steps = [
+      { id: 'model',   label: 'Creating model record',           status: 'active'  },
+      { id: 'upload',  label: fileMode === 'upload'
+          ? `Uploading ${uploadedFile?.name ?? 'model file'}`
+          : 'Linking model file from Hugging Face',              status: 'pending' },
+      { id: 'version', label: 'Creating version',                status: 'pending' },
+      ...(pipelineChoice === 'generate'
+        ? [{ id: 'pipeline', label: 'Generating AI pipeline…',         status: 'pending' }]
+        : pipelineChoice === 'manual' && pipelineConfig
+        ? [{ id: 'pipeline', label: 'Saving pipeline configuration',  status: 'pending' }]
+        : []),
+    ];
+    setProgressSteps(steps);
+
+    const advance = (id) => setProgressSteps(prev =>
+      prev ? prev.map(s =>
+        s.id === id ? { ...s, status: 'done' } :
+        // activate the next pending step automatically
+        s.status === 'pending' && prev.findIndex(x => x.id === id) === prev.findIndex(x => x.id === s.id) - 1
+          ? { ...s, status: 'active' }
+          : s
+      ) : prev
+    );
+    const activate = (id) => setProgressSteps(prev =>
+      prev ? prev.map(s => s.id === id ? { ...s, status: 'active' } : s) : prev
+    );
 
     try {
-      // Here you would call the backend API to create the model and version
-      // For now, we'll simulate the process
-      setSuccess(true);
-      setTimeout(() => {
-        navigate('/browse');
-      }, 2000);
+      // 1. Create model
+      const newModel = await ApiService.createModel({
+        name: meta.name.trim(),
+        description: meta.description.trim(),
+        category: meta.category,
+        task: meta.task.trim() || null,
+        tags: meta.tags.split(',').map(t => t.trim()).filter(Boolean),
+        license_type: meta.license_type,
+        hf_model_id: meta.hf_model_id.trim() || null,
+        is_public: meta.is_public,
+      });
+      advance('model');
+
+      // 2. Resolve file URL
+      activate('upload');
+      let tfliteUrl, fileSizeBytes = 0, isHostedByUs = false;
+      if (fileMode === 'upload') {
+        const { data: { user } } = await supabase.auth.getUser();
+        const path = `${user.id}/${generateShortId()}/${uploadedFile.name}`;
+        const { error: uploadError } = await supabase.storage
+          .from(MODEL_FILES_BUCKET)
+          .upload(path, uploadedFile, { contentType: 'application/octet-stream' });
+        if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`);
+        const { data: { publicUrl } } = supabase.storage.from(MODEL_FILES_BUCKET).getPublicUrl(path);
+        tfliteUrl = publicUrl;
+        fileSizeBytes = uploadedFile.size;
+        isHostedByUs = true;
+      } else {
+        tfliteUrl = selectedHfFile.url;
+        fileSizeBytes = selectedHfFile.size_bytes;
+      }
+      advance('upload');
+
+      // 3. Create version
+      activate('version');
+      const newVersion = await ApiService.createModelVersion(newModel.id, {
+        version_name: version.version_name.trim(),
+        commit_sha: generateShortId(),
+        assets: { tflite: tfliteUrl },
+        changelog: version.changelog.trim() || null,
+        license_type: meta.license_type,
+        is_commercial_safe: false,
+        is_hosted_by_us: isHostedByUs,
+        file_size_bytes: fileSizeBytes,
+        ...(pipelineChoice === 'manual' && pipelineConfig ? { pipeline_spec: pipelineConfig } : {}),
+      });
+      advance('version');
+
+      // 4. Pipeline
+      if (pipelineChoice === 'generate') {
+        activate('pipeline');
+        await ApiService.generatePipeline(newVersion.id).catch(() => {});
+        advance('pipeline');
+      } else if (pipelineChoice === 'manual' && pipelineConfig) {
+        advance('pipeline');
+      }
+
+      // Hold the completed state briefly so the user can see all ticks
+      await new Promise(r => setTimeout(r, 900));
+      navigate(`/models/${newModel.id}`);
     } catch (err) {
-      setError('Failed to create model. Please try again.');
+      setProgressSteps(null);
+      setSubmitError(err.response?.data?.detail || err.message || 'Failed to create model.');
     }
   };
 
-  if (success) {
-    return (
-      <div className="max-w-2xl mx-auto text-center py-20">
-        <div className="mb-6 flex justify-center">
-          <div className="p-4 bg-green-100 rounded-full">
-            <CheckCircleIcon className="h-12 w-12 text-accent-lime" />
-          </div>
-        </div>
-        <h2 className="text-3xl font-bold text-slate-900 mb-2">Model Created!</h2>
-        <p className="text-slate-600 mb-8">Your model has been successfully created and is now available for users to download.</p>
-        <Button variant="primary" onClick={() => navigate('/dashboard')}>
-          View on Dashboard
-        </Button>
-      </div>
-    );
-  }
-
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="max-w-4xl mx-auto">
-      {/* Header */}
+    <div className="max-w-2xl mx-auto">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-slate-900 mb-2">Create Model</h1>
-        <p className="text-slate-600">Add a new mobile-optimized model to the platform</p>
+        <h1 className="text-3xl font-bold text-slate-900 mb-1">Create Model</h1>
+        <p className="text-slate-500">Add a new edge-AI model to the platform</p>
       </div>
 
-      {/* HF Import Banner */}
       {currentStep === 1 && (
-        <div className="mb-6 p-4 bg-gradient-to-r from-primary-50 to-slate-50 border border-primary-200 rounded-lg flex items-center justify-between">
+        <div className="mb-6 p-4 bg-gradient-to-r from-primary-50 to-slate-50 border border-primary-200 rounded-xl flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <SparklesIcon className="h-6 w-6 text-primary-600" />
+            <SparklesIcon className="h-5 w-5 text-primary-600 flex-shrink-0" />
             <div>
-              <p className="font-medium text-slate-900">Quick start: Import from Hugging Face</p>
-              <p className="text-sm text-slate-600">Auto-fill model metadata</p>
+              <p className="font-medium text-slate-900 text-sm">Quick-start: Import from Hugging Face</p>
+              <p className="text-xs text-slate-500">Auto-fill metadata from an existing HF repo</p>
             </div>
           </div>
-          <Button 
-            variant="primary" 
-            size="sm"
-            onClick={() => setShowHFSearch(true)}
-          >
-            Search HF
-          </Button>
+          <Button variant="primary" size="sm" onClick={() => setShowHFSearch(true)}>Search HF</Button>
         </div>
       )}
 
       {showHFSearch && (
-        <HuggingFaceSearch 
-          onModelSelect={handleHFModelSelect}
-          onClose={() => setShowHFSearch(false)}
+        <HuggingFaceSearch onModelSelect={handleHFModelSelect} onClose={() => setShowHFSearch(false)} />
+      )}
+
+      {/* ── Creation progress overlay ──────────────────────────────────── */}
+      {progressSteps && (
+        <div className="fixed inset-0 bg-slate-900/75 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-8 space-y-6">
+            {/* Animated icon */}
+            <div className="flex justify-center">
+              <div className="relative w-20 h-20">
+                <div className="absolute inset-0 rounded-2xl bg-primary-100 flex items-center justify-center">
+                  <CpuChipIcon className="h-10 w-10 text-primary-600" />
+                </div>
+                <div className="absolute inset-0 rounded-2xl border-4 border-primary-300 animate-ping opacity-30" />
+                <div className="absolute inset-0 rounded-2xl border-2 border-primary-400 animate-pulse opacity-60" />
+              </div>
+            </div>
+
+            <div className="text-center">
+              <h2 className="text-xl font-bold text-slate-900">Building your model…</h2>
+              <p className="text-sm text-slate-500 mt-1">Just a moment while we set everything up</p>
+            </div>
+
+            <div className="space-y-3">
+              {progressSteps.map(step => (
+                <div key={step.id} className="flex items-center gap-3">
+                  <div className="w-7 h-7 flex-shrink-0 flex items-center justify-center">
+                    {step.status === 'done' && (
+                      <div className="w-7 h-7 rounded-full bg-green-100 flex items-center justify-center">
+                        <CheckCircleIcon className="h-5 w-5 text-green-600" />
+                      </div>
+                    )}
+                    {step.status === 'active' && (
+                      <div className="w-7 h-7 rounded-full bg-primary-100 flex items-center justify-center">
+                        <ArrowPathIcon className="h-4 w-4 text-primary-600 animate-spin" />
+                      </div>
+                    )}
+                    {step.status === 'pending' && (
+                      <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center">
+                        <div className="w-2 h-2 rounded-full bg-slate-300" />
+                      </div>
+                    )}
+                  </div>
+                  <span className={`text-sm transition-colors ${
+                    step.status === 'done'    ? 'text-slate-400 line-through' :
+                    step.status === 'active'  ? 'text-slate-900 font-semibold' :
+                                                'text-slate-400'
+                  }`}>
+                    {step.label}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Pipeline wizard opens on top of the page when triggered from step 4 */}
+      {showPipelineWizard && (
+        <PipelineConfigWizard
+          initialConfig={pipelineConfig}
+          onSave={handlePipelineWizardSave}
+          onCancel={() => setShowPipelineWizard(false)}
         />
       )}
 
-      {/* Step Progress */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between">
-          {[1, 2, 3, 4].map((step, idx) => (
-            <React.Fragment key={step}>
-              <div
-                className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-colors ${
-                  currentStep >= step
-                    ? 'bg-primary-600 text-black'
-                    : 'bg-slate-200 text-slate-600'
-                }`}
-              >
-                {step}
-              </div>
-              {idx < 3 && (
-                <div
-                  className={`flex-1 h-1 mx-2 transition-colors ${
-                    currentStep > step ? 'bg-primary-600' : 'bg-slate-200'
-                  }`}
-                />
-              )}
-            </React.Fragment>
-          ))}
-        </div>
-        <div className="flex justify-between mt-2 text-sm text-slate-600">
-          <span>Model Info</span>
-          <span>Version</span>
-          <span>Assets</span>
-          <span>Pipeline</span>
-        </div>
-      </div>
+      <StepProgress current={currentStep} />
 
-      <form onSubmit={handleSubmit} className="bg-white rounded-xl border border-slate-200 p-8 space-y-6">
-        {error && (
-          <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-red-800 text-sm font-medium">{error}</p>
+      <div className="bg-white rounded-xl border border-slate-200 p-8 space-y-6">
+
+        {submitError && (
+          <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+            <XMarkIcon className="h-4 w-4 flex-shrink-0" />
+            {submitError}
           </div>
         )}
 
-        {/* ========== STEP 1: MODEL METADATA ========== */}
+        {/* ── Step 1: Model Info ─────────────────────────────────────────── */}
         {currentStep === 1 && (
-          <div className="space-y-6">
+          <div className="space-y-5">
             <h2 className="text-xl font-bold text-slate-900">Model Information</h2>
 
             <div>
-              <label className="block text-sm font-medium text-slate-900 mb-2">
-                Model Name *
+              <label className="block text-sm font-medium text-slate-900 mb-1.5">
+                Model Name <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
-                value={modelMetadata.name}
-                onChange={(e) => setModelMetadata(prev => ({ ...prev, name: e.target.value }))}
-                placeholder="e.g., MobileNet v3 Small"
-                className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
-                required
+                value={meta.name}
+                onChange={e => setMeta(p => ({ ...p, name: e.target.value }))}
+                placeholder="e.g. MobileNet v3 Small"
+                className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 ${metaErrors.name ? 'border-red-400' : 'border-slate-300'}`}
               />
+              {metaErrors.name && <p className="text-xs text-red-600 mt-1">{metaErrors.name}</p>}
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-900 mb-2">
-                Description *
+              <label className="block text-sm font-medium text-slate-900 mb-1.5">
+                Description <span className="text-red-500">*</span>
               </label>
               <textarea
-                value={modelMetadata.description}
-                onChange={(e) => setModelMetadata(prev => ({ ...prev, description: e.target.value }))}
-                placeholder="What does this model do? What are its capabilities?"
-                rows={4}
-                className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all resize-vertical"
-                required
+                value={meta.description}
+                onChange={e => setMeta(p => ({ ...p, description: e.target.value }))}
+                placeholder="What does this model do? What are its capabilities and limitations?"
+                rows={3}
+                className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none ${metaErrors.description ? 'border-red-400' : 'border-slate-300'}`}
               />
+              {metaErrors.description && <p className="text-xs text-red-600 mt-1">{metaErrors.description}</p>}
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-slate-900 mb-2">
-                  Category
-                </label>
+                <label className="block text-sm font-medium text-slate-900 mb-1.5">Category</label>
                 <select
-                  value={modelMetadata.category}
-                  onChange={(e) => setModelMetadata(prev => ({ ...prev, category: e.target.value }))}
-                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
+                  value={meta.category}
+                  onChange={e => setMeta(p => ({ ...p, category: e.target.value }))}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                 >
-                  {categories.map(cat => (
-                    <option key={cat.value} value={cat.value}>{cat.label}</option>
+                  {[['utility','Utility'],['diagnostic','Diagnostic'],['performance','Performance'],['fun','Fun'],['other','Other']].map(([v,l]) => (
+                    <option key={v} value={v}>{l}</option>
                   ))}
                 </select>
               </div>
-
               <div>
-                <label className="block text-sm font-medium text-slate-900 mb-2">
-                  License
-                </label>
+                <label className="block text-sm font-medium text-slate-900 mb-1.5">License</label>
                 <select
-                  value={modelMetadata.license_type}
-                  onChange={(e) => setModelMetadata(prev => ({ ...prev, license_type: e.target.value }))}
-                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
+                  value={meta.license_type}
+                  onChange={e => setMeta(p => ({ ...p, license_type: e.target.value }))}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                 >
-                  {licenseOptions.map(lic => (
-                    <option key={lic.value} value={lic.value}>{lic.label}</option>
+                  {[['apache-2.0','Apache 2.0'],['mit','MIT'],['bsd','BSD'],['cc-by-4.0','CC BY 4.0'],['openrail','OpenRAIL'],['gpl-3.0','GPL 3.0'],['unknown','Unknown']].map(([v,l]) => (
+                    <option key={v} value={v}>{l}</option>
                   ))}
                 </select>
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-900 mb-2">
-                Task Type
-              </label>
+              <label className="block text-sm font-medium text-slate-900 mb-1.5">Task Type</label>
               <input
                 type="text"
-                value={modelMetadata.task}
-                onChange={(e) => setModelMetadata(prev => ({ ...prev, task: e.target.value }))}
-                placeholder="e.g., image-classification, object-detection"
-                className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
+                value={meta.task}
+                onChange={e => setMeta(p => ({ ...p, task: e.target.value }))}
+                placeholder="e.g. image-classification, object-detection"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-900 mb-2">
-                Hugging Face Model ID
+              <label className="block text-sm font-medium text-slate-900 mb-1.5">
+                Hugging Face Model ID <span className="text-slate-400 font-normal">(optional)</span>
               </label>
               <input
                 type="text"
-                value={modelMetadata.hf_model_id}
-                onChange={(e) => setModelMetadata(prev => ({ ...prev, hf_model_id: e.target.value }))}
-                placeholder="e.g., google/mobilenet_v2_1.0_224"
-                className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
+                value={meta.hf_model_id}
+                onChange={e => setMeta(p => ({ ...p, hf_model_id: e.target.value }))}
+                placeholder="e.g. google/mobilenet_v2_1.0_224"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary-500"
               />
+              <p className="text-xs text-slate-500 mt-1">
+                Link to an existing HF repo to select the model file from it in the next step.
+              </p>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-900 mb-2">
-                Tags
-              </label>
+              <label className="block text-sm font-medium text-slate-900 mb-1.5">Tags</label>
               <input
                 type="text"
-                value={modelMetadata.tags.join(', ')}
-                onChange={(e) => setModelMetadata(prev => ({ 
-                  ...prev, 
-                  tags: e.target.value.split(',').map(t => t.trim()).filter(t => t)
-                }))}
-                placeholder="e.g., vision, classification, mobile"
-                className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
+                value={meta.tags}
+                onChange={e => setMeta(p => ({ ...p, tags: e.target.value }))}
+                placeholder="e.g. vision, classification, mobile"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
               />
               <p className="text-xs text-slate-500 mt-1">Separate tags with commas</p>
             </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-900 mb-2">Visibility</label>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setMeta(p => ({ ...p, is_public: true }))}
+                  className={`flex items-start gap-3 p-4 border-2 rounded-xl text-left transition-all ${meta.is_public ? 'border-primary-500 bg-primary-50' : 'border-slate-200 hover:border-slate-300'}`}
+                >
+                  <GlobeAltIcon className={`h-5 w-5 mt-0.5 flex-shrink-0 ${meta.is_public ? 'text-primary-600' : 'text-slate-400'}`} />
+                  <div>
+                    <p className={`font-semibold text-sm ${meta.is_public ? 'text-primary-800' : 'text-slate-700'}`}>Public</p>
+                    <p className="text-xs text-slate-500 mt-0.5">Anyone can view, download, and contribute versions</p>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMeta(p => ({ ...p, is_public: false }))}
+                  className={`flex items-start gap-3 p-4 border-2 rounded-xl text-left transition-all ${!meta.is_public ? 'border-slate-700 bg-slate-50' : 'border-slate-200 hover:border-slate-300'}`}
+                >
+                  <LockClosedIcon className={`h-5 w-5 mt-0.5 flex-shrink-0 ${!meta.is_public ? 'text-slate-700' : 'text-slate-400'}`} />
+                  <div>
+                    <p className={`font-semibold text-sm ${!meta.is_public ? 'text-slate-900' : 'text-slate-700'}`}>Private</p>
+                    <p className="text-xs text-slate-500 mt-0.5">Only you can see and use this model</p>
+                  </div>
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
-        {/* ========== STEP 2: MODEL VERSION ========== */}
+        {/* ── Step 2: Version Details ────────────────────────────────────── */}
         {currentStep === 2 && (
-          <div className="space-y-6">
-            <h2 className="text-xl font-bold text-slate-900">Version Information</h2>
+          <div className="space-y-5">
+            <h2 className="text-xl font-bold text-slate-900">Version Details</h2>
+            <p className="text-sm text-slate-500">
+              This is the first version of your model. You can add more versions later from the model detail page.
+            </p>
 
             <div>
-              <label className="block text-sm font-medium text-slate-900 mb-2">
-                Version String *
+              <label className="block text-sm font-medium text-slate-900 mb-1.5">
+                Version Name <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
-                value={versionInfo.version_string}
-                onChange={(e) => setVersionInfo(prev => ({ ...prev, version_string: e.target.value }))}
-                placeholder="1.0.0"
-                className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
-                required
+                value={version.version_name}
+                onChange={e => setVersion(p => ({ ...p, version_name: e.target.value }))}
+                placeholder="e.g. 1.0.0 or initial"
+                className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 ${versionErrors.version_name ? 'border-red-400' : 'border-slate-300'}`}
               />
-              <p className="text-xs text-slate-500 mt-1">Use semantic versioning (e.g., 1.0.0)</p>
+              {versionErrors.version_name && <p className="text-xs text-red-600 mt-1">{versionErrors.version_name}</p>}
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-900 mb-2">
-                Changelog
+              <label className="block text-sm font-medium text-slate-900 mb-1.5">
+                Changelog <span className="text-slate-400 font-normal">(optional)</span>
               </label>
               <textarea
-                value={versionInfo.changelog}
-                onChange={(e) => setVersionInfo(prev => ({ ...prev, changelog: e.target.value }))}
-                placeholder="What's new in this version?"
-                rows={4}
-                className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all resize-vertical"
+                value={version.changelog}
+                onChange={e => setVersion(p => ({ ...p, changelog: e.target.value }))}
+                placeholder="Initial release"
+                rows={3}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none"
               />
             </div>
           </div>
         )}
 
-        {/* ========== STEP 3: ASSETS ========== */}
+        {/* ── Step 3: Model File ─────────────────────────────────────────── */}
         {currentStep === 3 && (
-          <div className="space-y-6">
-            <h2 className="text-xl font-bold text-slate-900">Assets</h2>
-            <p className="text-sm text-slate-600">Define the files and resources for this model version. Assets are pointers to files, not the files themselves.</p>
+          <div className="space-y-5">
+            <h2 className="text-xl font-bold text-slate-900">Model File</h2>
 
-            <div className="space-y-4">
-              {assets.map((asset, idx) => (
-                <div key={idx} className="p-4 border border-slate-200 rounded-lg space-y-4">
-                  <div className="flex items-start justify-between">
-                    <h4 className="font-medium text-slate-900">Asset {idx + 1}</h4>
-                    {assets.length > 1 && (
+            <div className="flex border border-slate-200 rounded-lg overflow-hidden text-sm font-medium">
+              <button
+                type="button"
+                onClick={() => setFileMode('upload')}
+                className={`flex-1 py-2.5 flex items-center justify-center gap-2 transition-colors ${fileMode === 'upload' ? 'bg-primary-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}
+              >
+                <ArrowUpTrayIcon className="h-4 w-4" />
+                Upload File
+              </button>
+              <button
+                type="button"
+                onClick={() => setFileMode('hf')}
+                disabled={!meta.hf_model_id.trim()}
+                title={!meta.hf_model_id.trim() ? 'Set a Hugging Face Model ID in Step 1 to use this option' : ''}
+                className={`flex-1 py-2.5 flex items-center justify-center gap-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${fileMode === 'hf' ? 'bg-primary-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}
+              >
+                <SparklesIcon className="h-4 w-4" />
+                Hugging Face Repo
+              </button>
+            </div>
+
+            {fileMode === 'upload' && (
+              <div>
+                <input ref={fileInputRef} type="file" accept=".tflite" onChange={handleFileSelect} className="hidden" />
+                {uploadedFile ? (
+                  <div className="flex items-center gap-3 p-4 border border-primary-200 bg-primary-50 rounded-xl">
+                    <DocumentIcon className="h-8 w-8 text-primary-600 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-slate-900 text-sm truncate">{uploadedFile.name}</p>
+                      <p className="text-xs text-slate-500">{formatBytes(uploadedFile.size)}</p>
+                    </div>
+                    <button type="button" onClick={() => { setUploadedFile(null); fileInputRef.current.value = ''; }} className="p-1 hover:bg-primary-100 rounded-lg">
+                      <XMarkIcon className="h-4 w-4 text-slate-500" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current.click()}
+                    className="w-full border-2 border-dashed border-slate-300 rounded-xl p-10 flex flex-col items-center gap-3 hover:border-primary-400 hover:bg-primary-50 transition-all group"
+                  >
+                    <ArrowUpTrayIcon className="h-8 w-8 text-slate-400 group-hover:text-primary-500 transition-colors" />
+                    <div className="text-center">
+                      <p className="font-medium text-slate-700 group-hover:text-primary-700">Click to select a .tflite file</p>
+                      <p className="text-xs text-slate-400 mt-0.5">The file will be stored in Gumbo's model storage</p>
+                    </div>
+                  </button>
+                )}
+              </div>
+            )}
+
+            {fileMode === 'hf' && (
+              <div>
+                {loadingHfFiles ? (
+                  <div className="flex items-center gap-2 text-sm text-slate-500 py-3">
+                    <ArrowPathIcon className="h-4 w-4 animate-spin" />
+                    Loading files from Hugging Face…
+                  </div>
+                ) : hfFilesError ? (
+                  <p className="text-sm text-red-600 py-2">{hfFilesError}</p>
+                ) : hfFiles.length === 0 ? (
+                  <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800">
+                    No .tflite files found in <span className="font-mono font-medium">{meta.hf_model_id}</span>.
+                    Try uploading a file instead.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {hfFiles.map(f => (
                       <button
+                        key={f.url}
                         type="button"
-                        onClick={() => handleRemoveAsset(idx)}
-                        className="text-red-600 hover:text-red-700 text-sm font-medium"
+                        onClick={() => setSelectedHfFile(f)}
+                        className={`w-full flex items-center gap-3 p-3.5 border-2 rounded-xl text-left transition-all ${selectedHfFile?.url === f.url ? 'border-primary-500 bg-primary-50' : 'border-slate-200 hover:border-slate-300'}`}
                       >
-                        Remove
+                        <DocumentIcon className={`h-5 w-5 flex-shrink-0 ${selectedHfFile?.url === f.url ? 'text-primary-600' : 'text-slate-400'}`} />
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-sm font-medium truncate ${selectedHfFile?.url === f.url ? 'text-primary-800' : 'text-slate-700'}`}>{f.filename}</p>
+                          {f.size_bytes > 0 && <p className="text-xs text-slate-400">{formatBytes(f.size_bytes)}</p>}
+                        </div>
+                        {selectedHfFile?.url === f.url && <CheckCircleIcon className="h-5 w-5 text-primary-600 flex-shrink-0" />}
                       </button>
-                    )}
+                    ))}
                   </div>
+                )}
+              </div>
+            )}
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-slate-900 mb-2">
-                        Asset Key *
-                      </label>
-                      <input
-                        type="text"
-                        value={asset.asset_key}
-                        onChange={(e) => handleUpdateAsset(idx, 'asset_key', e.target.value)}
-                        placeholder="e.g., model_file, labels_file"
-                        className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-slate-900 mb-2">
-                        Asset Type *
-                      </label>
-                      <select
-                        value={asset.asset_type}
-                        onChange={(e) => handleUpdateAsset(idx, 'asset_type', e.target.value)}
-                        className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
-                      >
-                        {assetTypes.map(type => (
-                          <option key={type.value} value={type.value}>{type.label}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-slate-900 mb-2">
-                      Source URL *
-                    </label>
-                    <input
-                      type="url"
-                      value={asset.source_url}
-                      onChange={(e) => handleUpdateAsset(idx, 'source_url', e.target.value)}
-                      placeholder="https://example.com/model.tflite"
-                      className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-slate-900 mb-2">
-                        File Size (bytes)
-                      </label>
-                      <input
-                        type="number"
-                        value={asset.file_size_bytes}
-                        onChange={(e) => handleUpdateAsset(idx, 'file_size_bytes', parseInt(e.target.value))}
-                        placeholder="0"
-                        className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-slate-900 mb-2">
-                        File Hash
-                      </label>
-                      <input
-                        type="text"
-                        value={asset.file_hash}
-                        onChange={(e) => handleUpdateAsset(idx, 'file_hash', e.target.value)}
-                        placeholder="sha256:..."
-                        className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
-                      />
-                    </div>
-                  </div>
-
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={asset.is_hosted_by_us}
-                      onChange={(e) => handleUpdateAsset(idx, 'is_hosted_by_us', e.target.checked)}
-                      className="rounded border-slate-300"
-                    />
-                    <span className="text-sm text-slate-700">Hosted by us</span>
-                  </label>
-                </div>
-              ))}
-            </div>
-
-            <Button
-              type="button"
-              variant="secondary"
-              size="md"
-              onClick={handleAddAsset}
-            >
-              + Add Another Asset
-            </Button>
+            {fileError && <p className="text-sm text-red-600">{fileError}</p>}
           </div>
         )}
 
-        {/* ========== STEP 4: PIPELINE ========== */}
+        {/* ── Step 4: Pipeline ───────────────────────────────────────────── */}
         {currentStep === 4 && (
-          <div className="space-y-6">
-            <h2 className="text-xl font-bold text-slate-900">Pipeline Configuration</h2>
-
-            {/* Input Nodes */}
+          <div className="space-y-5">
             <div>
-              <h3 className="font-medium text-slate-900 mb-3">Input Nodes *</h3>
-              <div className="space-y-2 mb-3">
-                {pipelineConfig.input_nodes.map((node, idx) => (
-                  <div key={idx} className="flex gap-2">
-                    <input
-                      type="text"
-                      value={node}
-                      onChange={(e) => handleUpdatePipelineInputNode(idx, e.target.value)}
-                      placeholder="e.g., input_1, image"
-                      className="flex-1 px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveInputNode(idx)}
-                      className="text-red-600 hover:text-red-700 px-3 py-2"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                ))}
-              </div>
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                onClick={handleAddInputNode}
-              >
-                + Add Input Node
-              </Button>
+              <h2 className="text-xl font-bold text-slate-900">Pipeline Configuration</h2>
+              <p className="text-sm text-slate-500 mt-1">
+                A pipeline tells the app how to pre-process inputs and interpret model outputs on-device.
+              </p>
             </div>
 
-            {/* Output Nodes */}
-            <div>
-              <h3 className="font-medium text-slate-900 mb-3">Output Nodes *</h3>
-              <div className="space-y-2 mb-3">
-                {pipelineConfig.output_nodes.map((node, idx) => (
-                  <div key={idx} className="flex gap-2">
-                    <input
-                      type="text"
-                      value={node}
-                      onChange={(e) => handleUpdatePipelineOutputNode(idx, e.target.value)}
-                      placeholder="e.g., output_1, predictions"
-                      className="flex-1 px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveOutputNode(idx)}
-                      className="text-red-600 hover:text-red-700 px-3 py-2"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                ))}
-              </div>
-              <Button
+            <div className="space-y-3">
+              {/* Create Manually */}
+              <button
                 type="button"
-                variant="secondary"
-                size="sm"
-                onClick={handleAddOutputNode}
+                onClick={() => { setPipelineChoice('manual'); setShowPipelineWizard(true); }}
+                className={`w-full p-4 border-2 rounded-xl text-left transition-all group ${pipelineChoice === 'manual' ? 'border-primary-500 bg-primary-50' : 'border-slate-200 hover:border-primary-300 hover:bg-primary-50'}`}
               >
-                + Add Output Node
-              </Button>
+                <div className="flex items-start gap-3">
+                  <div className={`p-2 rounded-lg flex-shrink-0 transition-colors ${pipelineChoice === 'manual' ? 'bg-primary-200' : 'bg-primary-100 group-hover:bg-primary-200'}`}>
+                    <PencilSquareIcon className="h-5 w-5 text-primary-700" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="font-semibold text-slate-900">Create Manually</p>
+                      {pipelineChoice === 'manual' && pipelineConfig && (
+                        <span className="inline-flex items-center gap-1 text-xs font-medium text-primary-700 bg-primary-100 px-2 py-0.5 rounded-full">
+                          <CheckCircleIcon className="h-3.5 w-3.5" /> Configured
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-sm text-slate-500 mt-0.5">
+                      {pipelineChoice === 'manual' && pipelineConfig
+                        ? 'Pipeline configured — click to edit.'
+                        : 'Build the pipeline step-by-step using the visual or JSON editor.'}
+                    </p>
+                  </div>
+                </div>
+              </button>
+
+              {/* Generate with AI */}
+              <button
+                type="button"
+                onClick={() => setPipelineChoice('generate')}
+                className={`w-full p-4 border-2 rounded-xl text-left transition-all group ${pipelineChoice === 'generate' ? 'border-amber-500 bg-amber-50' : 'border-slate-200 hover:border-amber-300 hover:bg-amber-50'}`}
+              >
+                <div className="flex items-start gap-3">
+                  <div className={`p-2 rounded-lg flex-shrink-0 transition-colors ${pipelineChoice === 'generate' ? 'bg-amber-200' : 'bg-amber-100 group-hover:bg-amber-200'}`}>
+                    <SparklesIcon className="h-5 w-5 text-amber-700" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-slate-900">Generate with AI</p>
+                    <p className="text-sm text-slate-500 mt-0.5">
+                      Gemini will attempt to generate the pipeline automatically from the model's metadata after creation.
+                    </p>
+                  </div>
+                </div>
+              </button>
+
+              {/* Skip */}
+              <button
+                type="button"
+                onClick={() => setPipelineChoice('skip')}
+                className={`w-full p-4 border-2 rounded-xl text-left transition-all group ${pipelineChoice === 'skip' ? 'border-slate-500 bg-slate-50' : 'border-slate-200 hover:border-slate-400'}`}
+              >
+                <div className="flex items-start gap-3">
+                  <div className={`p-2 rounded-lg flex-shrink-0 transition-colors ${pipelineChoice === 'skip' ? 'bg-slate-200' : 'bg-slate-100 group-hover:bg-slate-200'}`}>
+                    <XMarkIcon className="h-5 w-5 text-slate-600" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-slate-900">Skip for Now</p>
+                    <p className="text-sm text-slate-500 mt-0.5">
+                      Create the model without a pipeline. You can configure it later from the model detail page.
+                    </p>
+                  </div>
+                </div>
+              </button>
             </div>
 
-            {/* Pre-processing */}
-            <div>
-              <h3 className="font-medium text-slate-900 mb-3">Pre-processing Steps</h3>
-              <p className="text-sm text-slate-600 mb-3">Define data preprocessing steps like normalization, resizing, etc.</p>
-              <div className="space-y-2 mb-3">
-                {pipelineConfig.pre_processing.map((step, idx) => (
-                  <div key={idx} className="p-3 border border-slate-200 rounded-lg">
-                    <input
-                      type="text"
-                      value={step.step_name}
-                      onChange={(e) => {
-                        setPipelineConfig(prev => {
-                          const updated = [...prev.pre_processing];
-                          updated[idx].step_name = e.target.value;
-                          return { ...prev, pre_processing: updated };
-                        });
-                      }}
-                      placeholder="e.g., resize, normalize, convert_color"
-                      className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
-                    />
-                  </div>
-                ))}
-              </div>
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                onClick={handleAddPreProcessingStep}
-              >
-                + Add Pre-processing Step
-              </Button>
-            </div>
-
-            {/* Post-processing */}
-            <div>
-              <h3 className="font-medium text-slate-900 mb-3">Post-processing Steps</h3>
-              <p className="text-sm text-slate-600 mb-3">Define output processing steps like softmax, NMS, etc.</p>
-              <div className="space-y-2 mb-3">
-                {pipelineConfig.post_processing.map((step, idx) => (
-                  <div key={idx} className="p-3 border border-slate-200 rounded-lg">
-                    <input
-                      type="text"
-                      value={step.step_name}
-                      onChange={(e) => {
-                        setPipelineConfig(prev => {
-                          const updated = [...prev.post_processing];
-                          updated[idx].step_name = e.target.value;
-                          return { ...prev, post_processing: updated };
-                        });
-                      }}
-                      placeholder="e.g., softmax, nms, decode"
-                      className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
-                    />
-                  </div>
-                ))}
-              </div>
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                onClick={handleAddPostProcessingStep}
-              >
-                + Add Post-processing Step
-              </Button>
-            </div>
+            {submitError && (
+              <p className="text-sm text-red-600">{submitError}</p>
+            )}
           </div>
         )}
 
-        {/* Navigation Buttons */}
-        <div className="flex gap-4 pt-6 border-t border-slate-200">
+        {/* ── Navigation ────────────────────────────────────────────────── */}
+        <div className="flex gap-3 pt-4 border-t border-slate-200">
           <Button
             type="button"
-            variant="secondary"
-            size="lg"
-            onClick={() => currentStep === 1 ? navigate(-1) : setCurrentStep(currentStep - 1)}
+            variant="outline"
+            size="md"
+            onClick={() => currentStep === 1 ? navigate(-1) : setCurrentStep(s => s - 1)}
             className="flex-1"
+            disabled={!!progressSteps}
           >
             {currentStep === 1 ? 'Cancel' : '← Back'}
           </Button>
-          
+
           {currentStep < 4 ? (
             <Button
               type="button"
               variant="primary"
-              size="lg"
-              onClick={() => setCurrentStep(currentStep + 1)}
-              disabled={
-                currentStep === 1 ? !canProceedToStep2() :
-                currentStep === 2 ? !canProceedToStep3() :
-                !canProceedToStep4()
-              }
+              size="md"
+              onClick={goNext}
               className="flex-1 flex items-center justify-center gap-2"
             >
               Next <ChevronRightIcon className="h-4 w-4" />
             </Button>
           ) : (
             <Button
-              type="submit"
+              type="button"
               variant="primary"
-              size="lg"
+              size="md"
+              onClick={handleSubmit}
+              disabled={!pipelineChoice || !!progressSteps}
               className="flex-1"
             >
               Create Model
             </Button>
           )}
         </div>
-      </form>
+      </div>
     </div>
   );
 };

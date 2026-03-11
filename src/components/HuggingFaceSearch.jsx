@@ -1,7 +1,8 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useRef } from 'react';
 import { MagnifyingGlassIcon, ExclamationTriangleIcon, SparklesIcon } from '@heroicons/react/24/outline';
 import Button from './Button';
 import LoadingCard from './LoadingCard';
+import { ApiService } from '../api/client';
 
 export default function HuggingFaceSearch({ onModelSelect, onClose }) {
   const [searchQuery, setSearchQuery] = useState('');
@@ -9,8 +10,9 @@ export default function HuggingFaceSearch({ onModelSelect, onClose }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [noResults, setNoResults] = useState(false);
+  const debounceTimer = useRef(null);
 
-  const searchHuggingFace = useCallback(async (query) => {
+  const searchHuggingFace = async (query) => {
     if (!query.trim()) {
       setSearchResults([]);
       setNoResults(false);
@@ -22,102 +24,40 @@ export default function HuggingFaceSearch({ onModelSelect, onClose }) {
     setNoResults(false);
 
     try {
-      // Get auth token from localStorage (set by auth context)
-      const token = localStorage.getItem('supabase_auth_token');
-      
-      // Call the backend to search HF models with tflite files
-      const response = await fetch(
-        `http://127.0.0.1:8000/search/huggingface?query=${encodeURIComponent(query)}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${token || ''}`,
-          },
-        }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ detail: response.statusText }));
-        const errorMsg = errorData.detail || response.statusText;
-        
-        if (response.status === 401) {
-          throw new Error('Session expired. Please log in again.');
-        } else if (response.status === 429) {
-          throw new Error('Search rate limit reached. Please try again in a moment.');
-        } else if (response.status === 503) {
-          throw new Error('Hugging Face is temporarily unavailable. Please try again later.');
-        } else {
-          throw new Error(errorMsg);
-        }
-      }
-
-      const data = await response.json();
+      const data = await ApiService.searchHuggingFace(query);
       setSearchResults(data.results || []);
-      setNoResults(data.results && data.results.length === 0);
+      setNoResults((data.results || []).length === 0);
     } catch (err) {
-      setError(`${err.message}`);
+      const status = err.response?.status;
+      if (status === 429) {
+        setError('Search rate limit reached. Please try again in a moment.');
+      } else if (status === 503) {
+        setError('Hugging Face is temporarily unavailable. Please try again later.');
+      } else {
+        setError(err.response?.data?.detail || err.message || 'Search failed.');
+      }
       setSearchResults([]);
     } finally {
       setLoading(false);
     }
-  }, []);
+  };
 
   const handleSearch = (e) => {
     const query = e.target.value;
     setSearchQuery(query);
-    
-    // Debounce search - only search if user stops typing for 500ms
-    const timer = setTimeout(() => {
-      searchHuggingFace(query);
-    }, 500);
-
-    return () => clearTimeout(timer);
+    clearTimeout(debounceTimer.current);
+    debounceTimer.current = setTimeout(() => searchHuggingFace(query), 500);
   };
 
-  const handleModelSelect = async (model) => {
-    setLoading(true);
-    setError('');
-
-    try {
-      const token = localStorage.getItem('supabase_auth_token');
-      
-      // Call the import endpoint
-      const response = await fetch('http://127.0.0.1:8000/import/huggingface', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token || ''}`,
-        },
-        body: JSON.stringify({
-          hf_id: model.id,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ detail: response.statusText }));
-        throw new Error(errorData.detail || response.statusText);
-      }
-
-      const importedModel = await response.json();
-      
-      // Pass the imported data back to parent component
-      onModelSelect({
-        name: importedModel.name,
-        slug: importedModel.slug,
-        description: importedModel.description,
-        category: importedModel.category,
-        task: importedModel.task,
-        tags: importedModel.tags || [],
-        hf_model_id: importedModel.hf_model_id,
-        license_type: importedModel.license_type,
-      });
-
-      // Close the search modal
-      onClose();
-    } catch (err) {
-      setError(err.message || 'Failed to import model');
-    } finally {
-      setLoading(false);
-    }
+  const handleModelSelect = (model) => {
+    onModelSelect({
+      name: model.id.split('/').pop(),
+      description: model.description || '',
+      task: model.pipeline_tag || '',
+      tags: model.tags || [],
+      hf_model_id: model.id,
+    });
+    onClose();
   };
 
   return (

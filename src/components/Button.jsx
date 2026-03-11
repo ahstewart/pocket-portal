@@ -10,7 +10,7 @@ export default function Button({
   const baseStyles = 'font-medium rounded-lg transition-all duration-200 ease-smooth disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 justify-center';
   
   const variants = {
-    primary: 'bg-primary-600 text-black hover:bg-primary-700 active:bg-primary-800 shadow-lg hover:shadow-xl font-semibold',
+    primary: 'bg-primary-600 text-white hover:bg-primary-700 active:bg-primary-800 shadow-lg hover:shadow-xl font-semibold',
     secondary: 'bg-slate-200 text-slate-900 hover:bg-slate-300 active:bg-slate-400 border-2 border-slate-400 font-semibold shadow-md hover:shadow-lg',
     tertiary: 'text-primary-600 hover:bg-primary-50 active:bg-primary-100 font-semibold',
     danger: 'bg-red-600 text-white hover:bg-red-700 active:bg-red-800 shadow-lg hover:shadow-xl font-semibold',

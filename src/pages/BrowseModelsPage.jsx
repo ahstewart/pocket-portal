@@ -24,8 +24,8 @@ export const BrowseModelsPage = () => {
   const [models, setModels] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState(saved.searchQuery ?? '');
-  const [categoryFilter, setCategoryFilter] = useState(saved.categoryFilter ?? null);
-  const [taskFilter, setTaskFilter] = useState(saved.taskFilter ?? null);
+  const [categoryFilter, setCategoryFilter] = useState(saved.categoryFilter ?? []);
+  const [taskFilter, setTaskFilter] = useState(saved.taskFilter ?? []);
   const [hasVersionsOnly, setHasVersionsOnly] = useState(saved.hasVersionsOnly ?? false);
   const [statusFilter, setStatusFilter] = useState(saved.statusFilter ?? []);
   const [sortBy, setSortBy] = useState(saved.sortBy ?? 'newest');
@@ -51,14 +51,14 @@ export const BrowseModelsPage = () => {
   const filteredModels = useMemo(() => {
     let result = [...models];
 
-    // Category filter
-    if (categoryFilter) {
-      result = result.filter(m => m.category === categoryFilter);
+    // Category filter (multi)
+    if (categoryFilter.length > 0) {
+      result = result.filter(m => categoryFilter.includes(m.category));
     }
 
-    // Task filter
-    if (taskFilter) {
-      result = result.filter(m => m.task === taskFilter);
+    // Task filter (multi)
+    if (taskFilter.length > 0) {
+      result = result.filter(m => taskFilter.includes(m.task));
     }
 
     // Has versions filter
@@ -150,7 +150,7 @@ export const BrowseModelsPage = () => {
                   onClick={() => handlePageChange(pageNum, scrollToTop)}
                   className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
                     currentPage === pageNum
-                      ? 'bg-primary-600 text-black'
+                      ? 'bg-primary-600 text-white'
                       : 'bg-slate-200 text-slate-900 hover:bg-slate-300'
                   }`}
                 >
@@ -165,7 +165,7 @@ export const BrowseModelsPage = () => {
                   onClick={() => handlePageChange(pageNum, scrollToTop)}
                   className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
                     currentPage === pageNum
-                      ? 'bg-primary-600 text-black'
+                      ? 'bg-primary-600 text-white'
                       : 'bg-slate-200 text-slate-900 hover:bg-slate-300'
                   }`}
                 >
@@ -196,53 +196,49 @@ export const BrowseModelsPage = () => {
     {
       id: 'category',
       label: 'Category',
+      multi: true,
       activeValue: categoryFilter,
-      options: [
-        { label: 'All Categories', value: null },
-        ...categories.map(cat => ({ label: cat, value: cat }))
-      ]
+      options: categories.map(cat => ({ label: cat, value: cat })),
     },
     {
       id: 'task',
       label: 'Task Type',
+      multi: true,
       activeValue: taskFilter,
-      options: [
-        { label: 'All Tasks', value: null },
-        ...tasks.map(t => ({ label: t, value: t }))
-      ]
+      options: tasks.map(t => ({ label: t, value: t })),
     },
     {
       id: 'status',
       label: 'Pipeline Status',
-      activeValue: statusFilter,
       multi: true,
+      activeValue: statusFilter,
       options: [
-        { label: 'Supported', value: 'supported' },
-        { label: 'Configured', value: 'configured' },
-        { label: 'Unverified', value: 'unverified' },
+        { label: 'Supported',    value: 'supported'    },
+        { label: 'Configured',   value: 'configured'   },
+        { label: 'Unverified',   value: 'unverified'   },
         { label: 'Unconfigured', value: 'unconfigured' },
-        { label: 'Broken', value: 'broken' },
-        { label: 'Unsupported', value: 'unsupported' },
-      ]
+        { label: 'Broken',       value: 'broken'       },
+        { label: 'Unsupported',  value: 'unsupported'  },
+      ],
     },
     {
       id: 'sort',
       label: 'Sort By',
       activeValue: sortBy,
       options: [
-        { label: 'Newest', value: 'newest' },
-        { label: 'Most Downloaded', value: 'popular' },
-        { label: 'Highest Rated', value: 'highest-rated' },
-        { label: 'Pipeline Status', value: 'version-status' }
-      ]
-    }
+        { label: 'Newest',           value: 'newest'         },
+        { label: 'Most Downloaded',  value: 'popular'        },
+        { label: 'Highest Rated',    value: 'highest-rated'  },
+        { label: 'Pipeline Status',  value: 'version-status' },
+      ],
+    },
   ];
 
   const handleFilterChange = (filterId, value) => {
     if (filterId === 'category') {
-      setCategoryFilter(value);
+      setCategoryFilter(value ?? []);
     } else if (filterId === 'task') {
-      setTaskFilter(value);
+      setTaskFilter(value ?? []);
     } else if (filterId === 'status') {
       setStatusFilter(value);
     } else if (filterId === 'sort') {
@@ -283,14 +279,14 @@ export const BrowseModelsPage = () => {
             />
             Has versions
           </label>
-          {(searchQuery || categoryFilter || taskFilter || hasVersionsOnly || statusFilter.length > 0 || sortBy !== 'newest') && (
+          {(searchQuery || categoryFilter.length > 0 || taskFilter.length > 0 || hasVersionsOnly || statusFilter.length > 0 || sortBy !== 'newest') && (
             <Button
               variant="tertiary"
               size="sm"
               onClick={() => {
                 setSearchQuery('');
-                setCategoryFilter(null);
-                setTaskFilter(null);
+                setCategoryFilter([]);
+                setTaskFilter([]);
                 setHasVersionsOnly(false);
                 setStatusFilter([]);
                 setSortBy('newest');
@@ -328,9 +324,9 @@ export const BrowseModelsPage = () => {
         </>
       ) : (
         <EmptyState
-          title={searchQuery || categoryFilter || taskFilter || hasVersionsOnly || statusFilter.length > 0 ? "No models found" : "No models available"}
+          title={searchQuery || categoryFilter.length > 0 || taskFilter.length > 0 || hasVersionsOnly || statusFilter.length > 0 ? "No models found" : "No models available"}
           description={
-            searchQuery || categoryFilter || taskFilter || hasVersionsOnly || statusFilter.length > 0
+            searchQuery || categoryFilter.length > 0 || taskFilter.length > 0 || hasVersionsOnly || statusFilter.length > 0
               ? "Try adjusting your search or filters"
               : "Check back later for new models"
           }
