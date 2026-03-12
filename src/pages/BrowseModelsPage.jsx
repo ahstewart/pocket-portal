@@ -194,13 +194,6 @@ export const BrowseModelsPage = () => {
 
   const filterOptions = [
     {
-      id: 'category',
-      label: 'Category',
-      multi: true,
-      activeValue: categoryFilter,
-      options: categories.map(cat => ({ label: cat, value: cat })),
-    },
-    {
       id: 'task',
       label: 'Task Type',
       multi: true,

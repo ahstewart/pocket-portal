@@ -213,33 +213,33 @@ export const Layout = ({ children }) => {
 
       {/* FOOTER */}
       <footer className="bg-dark mt-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div>
-              <div className="mb-3">
+              <div className="mb-2">
                 <img src="/logo-with-name.png" alt="Jacana" className="h-12 w-auto brightness-0 invert" />
               </div>
               <p className="text-sm text-slate-400">Download and run mobile-optimized AI models.</p>
             </div>
             <div>
-              <h4 className="font-semibold text-white mb-3">Navigation</h4>
-              <ul className="space-y-2 text-sm">
-                <li><Link to="/" className="text-slate-400 hover:text-white transition">Home</Link></li>
-                <li><Link to="/browse" className="text-slate-400 hover:text-white transition">Browse Models</Link></li>
-                <li><Link to="/get-started" className="text-slate-400 hover:text-white transition">Get Started</Link></li>
-                <li><Link to="/docs" className="text-slate-400 hover:text-white transition">Docs</Link></li>
+              <h4 className="font-semibold text-white mb-2">Navigation</h4>
+              <ul className="space-y-1.5 text-sm">
+                <li><Link to="/" className="text-slate-300 hover:text-white transition">Home</Link></li>
+                <li><Link to="/browse" className="text-slate-300 hover:text-white transition">Browse Models</Link></li>
+                <li><Link to="/get-started" className="text-slate-300 hover:text-white transition">Get Started</Link></li>
+                <li><Link to="/docs" className="text-slate-300 hover:text-white transition">Docs</Link></li>
               </ul>
             </div>
             <div>
-              <h4 className="font-semibold text-white mb-3">About</h4>
+              <h4 className="font-semibold text-white mb-2">About</h4>
               <p className="text-sm text-slate-400">A platform for sharing and discovering mobile-optimized AI models for edge devices.</p>
             </div>
           </div>
-          <div className="border-t border-slate-700 mt-8 pt-8 flex justify-between items-center">
+          <div className="border-t border-slate-700 mt-5 pt-5 flex justify-between items-center">
             <p className="text-sm text-slate-400">© 2026 Jacana. All rights reserved.</p>
             <div className="flex gap-6 text-sm">
-              <a href="#" className="text-slate-400 hover:text-white transition">Privacy</a>
-              <a href="#" className="text-slate-400 hover:text-white transition">Terms</a>
+              <a href="#" className="text-slate-300 hover:text-white transition">Privacy</a>
+              <a href="#" className="text-slate-300 hover:text-white transition">Terms</a>
             </div>
           </div>
         </div>

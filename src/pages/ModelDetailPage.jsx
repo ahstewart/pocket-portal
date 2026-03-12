@@ -245,13 +245,11 @@ export const ModelDetailPage = () => {
           {backLabel}
         </Button>
 
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-card p-6 lg:p-8">
         <div className="flex flex-col lg:flex-row gap-8">
           {/* Model Info */}
           <div className="flex-1">
             <div className="flex items-start gap-3 mb-4 flex-wrap">
-              <Badge variant={model.category === 'diagnostic' ? 'primary' : 'slate'}>
-                {model.category}
-              </Badge>
               {parseFloat(rating) >= 4.0 && <Badge variant="warning">Popular</Badge>}
               {model.hf_model_id && <Badge variant="slate">HF Synced</Badge>}
               {model.is_public === false ? (
@@ -273,15 +271,15 @@ export const ModelDetailPage = () => {
             </p>
 
             {model.hf_model_id && (
-              <div className="mb-6 p-4 bg-slate-50 border border-slate-200 rounded-lg flex items-center gap-3">
-                <LinkIcon className="h-5 w-5 text-slate-600 flex-shrink-0" />
+              <div className="mb-6 p-4 bg-blue-50 border border-blue-100 rounded-lg flex items-center gap-3">
+                <LinkIcon className="h-5 w-5 text-blue-500 flex-shrink-0" />
                 <div className="flex-1">
                   <p className="text-sm text-slate-600">Available on Hugging Face</p>
                   <a
                     href={`https://huggingface.co/${model.hf_model_id}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-primary-600 font-medium hover:text-primary-700 break-all"
+                    className="text-blue-600 font-medium hover:text-blue-700 break-all"
                   >
                     huggingface.co/{model.hf_model_id}
                   </a>
@@ -329,8 +327,6 @@ export const ModelDetailPage = () => {
                   </div>
                 )}
                 <div>
-                  <p className="text-slate-600">Category</p>
-                  <p className="font-medium text-slate-900 capitalize">{model.category}</p>
                 </div>
                 {model.task && (
                   <div>
@@ -358,10 +354,14 @@ export const ModelDetailPage = () => {
             </div>
           </div>
         </div>
+        </div>
       </div>
 
+      {/* Section divider */}
+      <hr className="border-slate-200 my-2" />
+
       {/* Versions Section */}
-      <div className="space-y-4">
+      <div className="bg-primary-50 rounded-2xl border border-primary-100 p-6 space-y-4">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-bold text-slate-900">Versions</h2>
@@ -398,7 +398,7 @@ export const ModelDetailPage = () => {
             )}
           </div>
         ) : (
-          <div className="overflow-hidden border border-slate-200 rounded-xl">
+          <div className="overflow-hidden border border-slate-200 rounded-xl bg-white">
             <table className="w-full text-sm">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
@@ -450,7 +450,7 @@ export const ModelDetailPage = () => {
                         </tr>
                       ) : (
                         /* Normal version row */
-                        <tr className="hover:bg-slate-50 transition-colors">
+                        <tr className="bg-white hover:bg-primary-50 transition-colors">
                           {/* Version name + downloads */}
                           <td className="px-4 py-3">
                             <span className="font-mono font-medium text-slate-900">
@@ -655,6 +655,7 @@ export const ModelDetailPage = () => {
       {showAddVersionWizard && (
         <AddVersionWizard
           hfModelId={model.hf_model_id}
+          existingTfliteUrl={versions[0]?.assets?.tflite}
           onCreateManual={handleAddVersionManual}
           onCreateAndGenerate={handleAddVersionGenerate}
           onCancel={() => setShowAddVersionWizard(false)}

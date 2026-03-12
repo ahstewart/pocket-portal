@@ -24,10 +24,10 @@ export const HomePage = () => {
     <div className="space-y-12">
       {/* Hero Section */}
       <section className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-r from-primary-50 via-slate-50 to-primary-50 rounded-2xl" />
+        <div className="absolute inset-0 bg-gradient-to-r from-primary-50 via-teal-50 to-blue-50 rounded-2xl" />
         <div className="absolute inset-0 opacity-20">
           <div className="absolute top-2 left-1/4 w-64 h-64 bg-primary-200 rounded-full blur-3xl" />
-          <div className="absolute bottom-2 right-1/4 w-64 h-64 bg-slate-200 rounded-full blur-3xl" />
+          <div className="absolute bottom-2 right-1/4 w-64 h-64 bg-teal-200 rounded-full blur-3xl" />
         </div>
         
         <div className="relative z-10 px-8 py-16 sm:py-24 text-center max-w-3xl mx-auto">
@@ -39,7 +39,7 @@ export const HomePage = () => {
           </div>
           
           <h1 className="text-4xl sm:text-5xl font-bold text-slate-900 mb-4 tracking-tight">
-            Mobile AI Models <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-600 to-slate-900">Made Simple</span>
+            Mobile AI Models <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-600 to-teal-600">Made Simple</span>
           </h1>
           
           <p className="text-lg text-slate-600 mb-8 max-w-2xl mx-auto">
@@ -118,15 +118,15 @@ export const HomePage = () => {
         </div>
         
         <div className="p-6 bg-white rounded-xl border border-slate-200">
-          <div className="h-12 w-12 rounded-lg bg-primary-100 flex items-center justify-center mb-4">
+          <div className="h-12 w-12 rounded-lg bg-teal-100 flex items-center justify-center mb-4">
             <span className="text-2xl">🔄</span>
           </div>
           <h3 className="font-semibold text-slate-900 mb-2">Easy Sharing</h3>
           <p className="text-sm text-slate-600">Upload your models and share them with the community effortlessly.</p>
         </div>
-        
+
         <div className="p-6 bg-white rounded-xl border border-slate-200">
-          <div className="h-12 w-12 rounded-lg bg-primary-100 flex items-center justify-center mb-4">
+          <div className="h-12 w-12 rounded-lg bg-blue-100 flex items-center justify-center mb-4">
             <span className="text-2xl">📊</span>
           </div>
           <h3 className="font-semibold text-slate-900 mb-2">Track Usage</h3>

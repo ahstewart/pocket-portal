@@ -4,11 +4,6 @@ export default function LoadingCard({ className = '' }) {
       {/* Image skeleton */}
       <div className="w-full h-40 bg-slate-200 rounded-lg mb-4" />
       
-      {/* Category badge skeleton */}
-      <div className="flex gap-2 mb-3">
-        <div className="h-5 w-16 bg-slate-200 rounded-full" />
-      </div>
-
       {/* Title skeleton */}
       <div className="h-5 w-3/4 bg-slate-200 rounded mb-3" />
 

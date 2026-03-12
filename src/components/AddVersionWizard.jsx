@@ -19,7 +19,7 @@ const fetchHFTfliteFiles = async (hfModelId) => {
     }));
 };
 
-export const AddVersionWizard = ({ hfModelId, onCreateManual, onCreateAndGenerate, onCancel }) => {
+export const AddVersionWizard = ({ hfModelId, existingTfliteUrl, onCreateManual, onCreateAndGenerate, onCancel }) => {
   const [step, setStep] = useState('details');
   const [details, setDetails] = useState({
     version_name: '',
@@ -52,7 +52,7 @@ export const AddVersionWizard = ({ hfModelId, onCreateManual, onCreateAndGenerat
   const validate = () => {
     const e = {};
     if (!details.version_name.trim()) e.version_name = 'Version name is required';
-    if (!details.tflite_url) e.tflite_url = 'Please select a model file';
+    if (hfModelId && !details.tflite_url) e.tflite_url = 'Please select a model file';
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -61,8 +61,13 @@ export const AddVersionWizard = ({ hfModelId, onCreateManual, onCreateAndGenerat
     if (validate()) setStep('pipeline-choice');
   };
 
-  // Attach an auto-generated commit SHA just before handing off to parent
-  const withSha = () => ({ ...details, commit_sha: generateShortId() });
+  // Attach an auto-generated commit SHA just before handing off to parent.
+  // For non-HF models, carry the inherited tflite URL so handlers can use it.
+  const withSha = () => ({
+    ...details,
+    tflite_url: hfModelId ? details.tflite_url : (existingTfliteUrl || ''),
+    commit_sha: generateShortId(),
+  });
 
   const handleCreateAndGenerate = async () => {
     setGenerating(true);
@@ -77,16 +82,7 @@ export const AddVersionWizard = ({ hfModelId, onCreateManual, onCreateAndGenerat
 
   const renderModelFileField = () => {
     if (!hfModelId) {
-      return (
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">
-            Model File <span className="text-red-500">*</span>
-          </label>
-          <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-            This model has no Hugging Face repo linked — no files can be loaded.
-          </p>
-        </div>
-      );
+      return null;
     }
 
     return (

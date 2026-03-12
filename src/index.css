@@ -27,6 +27,30 @@
   --color-secondary-800: #75560b;
   --color-secondary-900: #4f3a07;
 
+  /* Teal: Wing Shield — text generation models, AI highlights */
+  --color-teal-50:  #f0fdfa;
+  --color-teal-100: #ccfbf1;
+  --color-teal-200: #99f6e4;
+  --color-teal-300: #5eead4;
+  --color-teal-400: #2dd4bf;
+  --color-teal-500: #14b8a6;
+  --color-teal-600: #0d9488;
+  --color-teal-700: #0f766e;
+  --color-teal-800: #115e59;
+  --color-teal-900: #134e4a;
+
+  /* Blue: Iridescent Wing — speech models, external links */
+  --color-blue-50:  #eff6ff;
+  --color-blue-100: #dbeafe;
+  --color-blue-200: #bfdbfe;
+  --color-blue-300: #93c5fd;
+  --color-blue-400: #60a5fa;
+  --color-blue-500: #3b82f6;
+  --color-blue-600: #2563eb;
+  --color-blue-700: #1d4ed8;
+  --color-blue-800: #1e40af;
+  --color-blue-900: #1e3a8a;
+
   /* Accent: Slate Blue — pending badge, borders, inactive states */
   --color-accent-50:  #f2f5f7;
   --color-accent-100: #e3eaed;

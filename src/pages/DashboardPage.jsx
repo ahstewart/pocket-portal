@@ -131,7 +131,6 @@ export const DashboardPage = () => {
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-slate-600 uppercase">Name</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-600 uppercase">Category</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-slate-600 uppercase">Downloads</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-slate-600 uppercase">Rating</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-slate-600 uppercase">Actions</th>
@@ -144,11 +143,6 @@ export const DashboardPage = () => {
                       <p className="font-medium text-slate-900 cursor-pointer hover:text-primary-600" onClick={() => navigate(`/models/${model.id}`, { state: { from: 'dashboard' } })}>
                         {model.name}
                       </p>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary-100 text-primary-800">
-                        {model.category}
-                      </span>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-1 text-slate-600">

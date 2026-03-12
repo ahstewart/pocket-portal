@@ -436,19 +436,7 @@ export const UploadModelPage = () => {
               {metaErrors.description && <p className="text-xs text-red-600 mt-1">{metaErrors.description}</p>}
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-900 mb-1.5">Category</label>
-                <select
-                  value={meta.category}
-                  onChange={e => setMeta(p => ({ ...p, category: e.target.value }))}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                >
-                  {[['utility','Utility'],['diagnostic','Diagnostic'],['performance','Performance'],['fun','Fun'],['other','Other']].map(([v,l]) => (
-                    <option key={v} value={v}>{l}</option>
-                  ))}
-                </select>
-              </div>
+            <div>
               <div>
                 <label className="block text-sm font-medium text-slate-900 mb-1.5">License</label>
                 <select

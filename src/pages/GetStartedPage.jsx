@@ -169,7 +169,7 @@ export const GetStartedPage = () => {
       </div>
 
       {/* For contributors */}
-      <div className="bg-gradient-to-br from-primary-50 to-slate-50 rounded-2xl border border-primary-200 p-8 text-center">
+      <div className="bg-gradient-to-br from-primary-50 via-teal-50 to-blue-50 rounded-2xl border border-teal-200 p-8 text-center">
         <SparklesIcon className="h-8 w-8 text-primary-500 mx-auto mb-4" />
         <h2 className="text-xl font-bold text-slate-900 mb-2">Have a model to share?</h2>
         <p className="text-slate-600 mb-6 max-w-md mx-auto">

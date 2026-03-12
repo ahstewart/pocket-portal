@@ -11,6 +11,8 @@ export const ModelCard = ({ model, from = 'browse' }) => {
       'Image Classification': 'lime',
       'Pose Estimation': 'amber',
       'Semantic Segmentation': 'rose',
+      'Text Generation': 'teal',
+      'Automatic Speech Recognition': 'blue',
       'Custom': 'slate',
     };
     return colors[category] || 'primary';
@@ -22,6 +24,8 @@ export const ModelCard = ({ model, from = 'browse' }) => {
       'Image Classification': 'border-lime-500',
       'Pose Estimation': 'border-amber-500',
       'Semantic Segmentation': 'border-rose-500',
+      'Text Generation': 'border-teal-500',
+      'Automatic Speech Recognition': 'border-blue-500',
       'Custom': 'border-slate-400',
     };
     return colors[category] || 'border-primary-500';
@@ -57,12 +61,6 @@ export const ModelCard = ({ model, from = 'browse' }) => {
                 Private
               </span>
             )}
-            <div className="flex items-center gap-1 text-xs text-slate-500">
-              <span>Category:</span>
-              <Badge variant={getCategoryColor(model.category)} className="text-xs">
-                {model.category}
-              </Badge>
-            </div>
           </div>
         </div>
 
