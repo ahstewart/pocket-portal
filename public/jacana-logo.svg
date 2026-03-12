@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" role="img" aria-label="Jacana bird logo">
+  <!-- Long legs (drawn first, behind body) -->
+  <!-- Front leg -->
+  <line x1="49" y1="74" x2="43" y2="93" stroke="#7B9490" stroke-width="3" stroke-linecap="round"/>
+  <!-- Back leg -->
+  <line x1="60" y1="72" x2="67" y2="91" stroke="#7B9490" stroke-width="3" stroke-linecap="round"/>
+
+  <!-- Front foot — very long splayed toes (jacana's defining trait) -->
+  <line x1="43" y1="93" x2="33" y2="96" stroke="#7B9490" stroke-width="2" stroke-linecap="round"/>
+  <line x1="43" y1="93" x2="44" y2="98" stroke="#7B9490" stroke-width="2" stroke-linecap="round"/>
+  <line x1="43" y1="93" x2="53" y2="96" stroke="#7B9490" stroke-width="2" stroke-linecap="round"/>
+  <line x1="43" y1="93" x2="36" y2="99" stroke="#7B9490" stroke-width="1.8" stroke-linecap="round"/>
+
+  <!-- Back foot -->
+  <line x1="67" y1="91" x2="57" y2="94" stroke="#7B9490" stroke-width="2" stroke-linecap="round"/>
+  <line x1="67" y1="91" x2="68" y2="97" stroke="#7B9490" stroke-width="2" stroke-linecap="round"/>
+  <line x1="67" y1="91" x2="77" y2="94" stroke="#7B9490" stroke-width="2" stroke-linecap="round"/>
+
+  <!-- Tail feathers -->
+  <path d="M 76 60 C 87 52 90 63 83 68 C 79 72 73 66 74 62 Z" fill="#9B3512"/>
+
+  <!-- Body (chestnut red) -->
+  <ellipse cx="54" cy="60" rx="25" ry="19" fill="#C84A18"/>
+
+  <!-- Wing shading -->
+  <path d="M 35 63 C 41 50 70 53 76 61 C 72 67 56 70 40 67 Z" fill="#A83C14" opacity="0.5"/>
+
+  <!-- Yellow chest / throat -->
+  <path d="M 34 68 C 26 60 27 48 34 43 C 39 48 39 60 37 68 Z" fill="#E09820"/>
+
+  <!-- Head (dark slate blue) -->
+  <circle cx="33" cy="43" r="16" fill="#243C6A"/>
+
+  <!-- White cheek / face patch -->
+  <ellipse cx="30" cy="49" rx="9.5" ry="6.5" fill="#ECEAE8" transform="rotate(-8 30 49)"/>
+
+  <!-- Yellow frontal shield (casque — the orange-yellow bump on the forehead) -->
+  <path d="M 26 35 C 28 27 37 29 37 35 C 34 40 28 39 26 35 Z" fill="#E29420"/>
+
+  <!-- Dark blue crown -->
+  <path d="M 22 41 C 22 33 27 27 34 27 C 41 27 47 33 47 41 C 43 38 38 36 34 36 C 30 36 25 38 22 41 Z" fill="#1A2D50"/>
+
+  <!-- Eye -->
+  <circle cx="28" cy="44" r="4.5" fill="#0D0D0D"/>
+  <circle cx="27" cy="43" r="1.8" fill="white"/>
+
+  <!-- Beak (bluish-grey) -->
+  <path d="M 20 45 L 6 42 L 20 50 Z" fill="#5E7872"/>
+  <line x1="7" y1="46" x2="20" y2="47" stroke="#4A6260" stroke-width="0.8" stroke-linecap="round"/>
+</svg>

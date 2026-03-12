@@ -81,7 +81,7 @@ export const BrowseModelsPage = () => {
     }
 
     // Sort
-    const STATUS_PRIORITY = { supported: 0, configured: 1, unverified: 2, unconfigured: 3, broken: 4, unsupported: 5 };
+    const STATUS_PRIORITY = { supported: 0, pending: 1, unsupported: 2 };
     switch (sortBy) {
       case 'newest':
         result.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
@@ -213,12 +213,9 @@ export const BrowseModelsPage = () => {
       multi: true,
       activeValue: statusFilter,
       options: [
-        { label: 'Supported',    value: 'supported'    },
-        { label: 'Configured',   value: 'configured'   },
-        { label: 'Unverified',   value: 'unverified'   },
-        { label: 'Unconfigured', value: 'unconfigured' },
-        { label: 'Broken',       value: 'broken'       },
-        { label: 'Unsupported',  value: 'unsupported'  },
+        { label: 'Supported',   value: 'supported'   },
+        { label: 'Pending',     value: 'pending'     },
+        { label: 'Unsupported', value: 'unsupported' },
       ],
     },
     {

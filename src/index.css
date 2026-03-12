@@ -3,27 +3,47 @@
 
 @theme {
   /* ── Colors ───────────────────────────────────────────────── */
-  --color-primary-50:  #f0f7ff;
-  --color-primary-100: #e0effe;
-  --color-primary-200: #bae6fd;
-  --color-primary-300: #7dd3fc;
-  --color-primary-400: #38bdf8;
-  --color-primary-500: #0ea5e9;
-  --color-primary-600: #0284c7;
-  --color-primary-700: #0369a1;
-  --color-primary-800: #075985;
-  --color-primary-900: #0c3d66;
+  /* Primary: Chestnut Brown — buttons, app bars, active states */
+  --color-primary-50:  #fdf4f0;
+  --color-primary-100: #fae5d8;
+  --color-primary-200: #f3c4a8;
+  --color-primary-300: #e89a72;
+  --color-primary-400: #d96e44;
+  --color-primary-500: #be5030;
+  --color-primary-600: #8C3A21;
+  --color-primary-700: #752f1b;
+  --color-primary-800: #5d2515;
+  --color-primary-900: #3f190d;
 
-  --color-secondary-50:  #f5f3ff;
-  --color-secondary-100: #ede9fe;
-  --color-secondary-200: #ddd6fe;
-  --color-secondary-500: #8b5cf6;
-  --color-secondary-600: #7c3aed;
-  --color-secondary-700: #6d28d9;
+  /* Secondary: Golden Amber — supported badge, highlights */
+  --color-secondary-50:  #fefaed;
+  --color-secondary-100: #fef0c3;
+  --color-secondary-200: #fce08a;
+  --color-secondary-300: #f9c94d;
+  --color-secondary-400: #f2b52b;
+  --color-secondary-500: #E5A91A;
+  --color-secondary-600: #c48e14;
+  --color-secondary-700: #9a700f;
+  --color-secondary-800: #75560b;
+  --color-secondary-900: #4f3a07;
 
-  --color-accent-lime:  #10b981;
-  --color-accent-amber: #f59e0b;
-  --color-accent-rose:  #f43f5e;
+  /* Accent: Slate Blue — pending badge, borders, inactive states */
+  --color-accent-50:  #f2f5f7;
+  --color-accent-100: #e3eaed;
+  --color-accent-200: #c5d3d8;
+  --color-accent-300: #a0b8be;
+  --color-accent-400: #829CA5;
+  --color-accent-500: #68828c;
+  --color-accent-600: #526870;
+  --color-accent-700: #3f5058;
+  --color-accent-800: #2c3940;
+  --color-accent-900: #1b252a;
+
+  /* Dark: Plumage Black — primary text, dark backgrounds */
+  --color-dark: #1A1A1A;
+
+  /* Light: Lily Pad White — app backgrounds, card surfaces */
+  --color-light: #F5F5F5;
 
   /* ── Typography ───────────────────────────────────────────── */
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;

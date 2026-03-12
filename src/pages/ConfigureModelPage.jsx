@@ -71,7 +71,7 @@ export default function ConfigureModelPage() {
           preprocessing,
           postprocessing
         },
-        status: "configured"
+        status: "pending"
       };
       // Send the PATCH request to our FastAPI backend
       await api.patch(`/models/${id}`, payload);

@@ -24,21 +24,15 @@ import {
 import { StarIcon as StarSolidIcon } from '@heroicons/react/24/solid';
 
 const STATUS_BADGE = {
-  supported:    'success',
-  configured:   'primary',
-  unverified:   'warning',
-  unconfigured: 'slate',
-  broken:       'danger',
-  unsupported:  'danger',
+  supported:   'secondary',
+  pending:     'accent',
+  unsupported: 'danger',
 };
 
 const STATUS_TOOLTIP = {
-  supported:    'Fully verified — the pipeline passed TFLite validation and is ready for on-device inference.',
-  configured:   'Manually configured — a pipeline exists but has not yet been validated against the TFLite model.',
-  unverified:   'Generated but unverified — a pipeline was created by AI, but the model file could not be tested (e.g. too large to validate locally). It may still work on device.',
-  unconfigured: 'No pipeline yet — this version has no pipeline configuration. Use the action buttons to generate or create one.',
-  broken:       'Validation failed — the generated pipeline was structurally incorrect or referenced unsupported operations.',
-  unsupported:  'Generation rejected — the AI determined this model is incompatible with the inference schema.',
+  supported:   'Verified — the pipeline passed TFLite validation and is ready for on-device inference.',
+  pending:     'Pending — a pipeline exists but has not yet been verified against the TFLite model.',
+  unsupported: 'Unsupported — this version has no pipeline, or its pipeline was confirmed broken or rejected.',
 };
 
 export const ModelDetailPage = () => {
@@ -138,7 +132,7 @@ export const ModelDetailPage = () => {
     try {
       const updated = await ApiService.updateModelVersion(editPipelineVersion.id, {
         pipeline_spec: newConfig,
-        status: 'configured',
+        status: 'pending',
       });
       setVersions(prev => prev.map(v => v.id === updated.id ? updated : v));
       setEditPipelineVersion(null);
@@ -499,7 +493,7 @@ export const ModelDetailPage = () => {
                           {/* Pipeline link + last updated */}
                           <td className="px-4 py-3">
                             {(() => {
-                              const isFailure = version.status === 'broken' || version.status === 'unsupported';
+                              const isFailure = version.status === 'unsupported';
                               const isShowingReason = showReasonVersionId === version.id;
                               return (
                                 <div className="space-y-1">

@@ -34,7 +34,7 @@ export const HomePage = () => {
           <div className="mb-6 flex justify-center">
             <div className="inline-flex items-center gap-2 bg-white/60 backdrop-blur-sm px-4 py-2 rounded-full border border-primary-200">
               <SparklesIcon className="h-4 w-4 text-primary-600" />
-              <span className="text-sm font-medium text-primary-700">Welcome to Pocket AI</span>
+              <span className="text-sm font-medium text-primary-700">Welcome to Jacana</span>
             </div>
           </div>
           

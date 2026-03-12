@@ -86,7 +86,7 @@ export const GetStartedPage = () => {
           <h2 className="text-xl font-bold text-slate-900">1. Download the app</h2>
         </div>
         <p className="text-slate-600 mb-6">
-          Pocket AI is a free mobile app for Android and iOS. Download it from your app store to get started.
+          Jacana is a free mobile app for Android and iOS. Download it from your app store to get started.
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <PlatformBadge label="Android" icon="🤖" sub="Google Play Store" />

@@ -32,13 +32,11 @@ export const LoginPage = () => {
       <div className="w-full max-w-md">
         {/* Header */}
         <div className="text-center mb-8">
-          <Link to="/" className="flex items-center gap-2 justify-center mb-6">
-            <div className="bg-gradient-to-br from-primary-500 to-primary-700 w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold shadow-lg">
-              P
-            </div>
+          <Link to="/" className="flex items-center justify-center mb-6">
+            <img src="/jacana-logo.svg" alt="Jacana" className="w-14 h-14" />
           </Link>
           <h1 className="text-3xl font-bold text-slate-900 mb-2">Welcome Back</h1>
-          <p className="text-slate-600">Sign in to your Pocket AI account</p>
+          <p className="text-slate-600">Sign in to your Jacana account</p>
         </div>
 
         {/* Form Card */}

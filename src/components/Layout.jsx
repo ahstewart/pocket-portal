@@ -44,11 +44,12 @@ export const Layout = ({ children }) => {
             
             {/* Left Side: Logo */}
             <div className="flex items-center gap-3 flex-1">
-              <Link to="/" className="flex items-center gap-2 group">
-                <div className="bg-gradient-to-br from-primary-500 to-secondary-600 w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-sm shadow-md-soft group-hover:shadow-lg-soft transition-all duration-200 group-hover:scale-105">
-                  P
-                </div>
-                <span className="font-bold text-lg tracking-tight text-slate-900 hidden sm:inline">Pocket <span className="text-primary-600">AI</span></span>
+              <Link to="/" className="flex items-center group">
+                <img
+                  src="/logo-with-name.png"
+                  alt="Jacana"
+                  className="h-14 w-auto transition-all duration-200 group-hover:scale-105 drop-shadow-sm"
+                />
               </Link>
             </div>
 
@@ -211,15 +212,12 @@ export const Layout = ({ children }) => {
       </main>
 
       {/* FOOTER */}
-      <footer className="bg-slate-900 mt-12">
+      <footer className="bg-dark mt-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div>
-              <div className="flex items-center gap-2 mb-3">
-                <div className="bg-gradient-to-br from-primary-500 to-secondary-600 w-6 h-6 rounded-lg flex items-center justify-center text-white font-bold text-xs">
-                  P
-                </div>
-                <span className="font-bold text-white">Pocket AI</span>
+              <div className="mb-3">
+                <img src="/logo-with-name.png" alt="Jacana" className="h-12 w-auto brightness-0 invert" />
               </div>
               <p className="text-sm text-slate-400">Download and run mobile-optimized AI models.</p>
             </div>
@@ -238,7 +236,7 @@ export const Layout = ({ children }) => {
             </div>
           </div>
           <div className="border-t border-slate-700 mt-8 pt-8 flex justify-between items-center">
-            <p className="text-sm text-slate-400">© 2026 Pocket AI. All rights reserved.</p>
+            <p className="text-sm text-slate-400">© 2026 Jacana. All rights reserved.</p>
             <div className="flex gap-6 text-sm">
               <a href="#" className="text-slate-400 hover:text-white transition">Privacy</a>
               <a href="#" className="text-slate-400 hover:text-white transition">Terms</a>

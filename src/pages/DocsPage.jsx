@@ -65,7 +65,7 @@ export const DocsPage = () => (
         <span className="text-primary-600">No internet required.</span>
       </h1>
       <p className="text-lg text-slate-500 max-w-2xl mx-auto">
-        Pocket AI is a marketplace for tiny, powerful AI models that run entirely on your device — no cloud, no subscription, no waiting.
+        Jacana is a marketplace for tiny, powerful AI models that run entirely on your device — no cloud, no subscription, no waiting.
       </p>
     </div>
 
@@ -79,7 +79,7 @@ export const DocsPage = () => (
         Most AI products send your data to a server, process it there, and send results back. That costs money, requires Wi-Fi, and raises privacy concerns.
       </p>
       <p className="text-slate-600 leading-relaxed">
-        Pocket AI flips this on its head. Models are downloaded once to your phone and run <strong className="text-slate-900">100% locally</strong> using the CPU or NPU built into your device. Once downloaded, they work on a plane, underground, wherever.
+        Jacana flips this on its head. Models are downloaded once to your phone and run <strong className="text-slate-900">100% locally</strong> using the CPU or NPU built into your device. Once downloaded, they work on a plane, underground, wherever.
       </p>
     </Section>
 
@@ -93,7 +93,7 @@ export const DocsPage = () => (
         Think of a model as a very smart function. You feed it an image (or some text), and it tells you something useful about it — like what objects are in the photo, or what language is being spoken.
       </p>
       <p className="text-slate-600 leading-relaxed mb-6">
-        The models on Pocket AI are stored in the <strong className="text-slate-900">LiteRT format</strong> (previously called TFLite) — Google's standard for efficient on-device AI. They're small enough to live on your phone but capable enough to do real work.
+        The models on Jacana are stored in the <strong className="text-slate-900">LiteRT format</strong> (previously called TFLite) — Google's standard for efficient on-device AI. They're small enough to live on your phone but capable enough to do real work.
       </p>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
@@ -118,7 +118,7 @@ export const DocsPage = () => (
     >
       <div className="space-y-5">
         <Step number={1} title="Browse the catalogue" description="Find models by task, category, or search. Each listing shows downloads, rating, and which version is ready to use." />
-        <Step number={2} title="Download to your phone" description="Open the Pocket AI mobile app, find the model you want, and tap Download. It's saved locally — no account needed to run models." />
+        <Step number={2} title="Download to your phone" description="Open the Jacana mobile app, find the model you want, and tap Download. It's saved locally — no account needed to run models." />
         <Step number={3} title="Run inference" description="Pick a model from My AI, feed it an image or some text, and see results in milliseconds — all on-device." />
         <Step number={4} title="That's it" description="No API key. No credits. No rate limits. Just fast, private AI on your hardware." />
       </div>
@@ -136,7 +136,7 @@ export const DocsPage = () => (
       <div className="space-y-4">
         <Step number={1} title="Create a model listing" description="Give it a name, description, category, and optionally link it to a Hugging Face repo." />
         <Step number={2} title="Add a version" description="Attach your .tflite file. New versions can be added anytime as you improve the model." />
-        <Step number={3} title="Generate a pipeline" description="Pocket AI's AI assistant (powered by Gemini) reads your model and generates a pipeline config automatically — telling the app how to pre-process inputs and interpret outputs." />
+        <Step number={3} title="Generate a pipeline" description="Jacana's AI assistant (powered by Gemini) reads your model and generates a pipeline config automatically — telling the app how to pre-process inputs and interpret outputs." />
         <Step number={4} title="Publish" description="Set visibility to Public and other users can find, download, and run your model." />
       </div>
     </Section>

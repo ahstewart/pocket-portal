@@ -618,7 +618,7 @@ export const UploadModelPage = () => {
                     <ArrowUpTrayIcon className="h-8 w-8 text-slate-400 group-hover:text-primary-500 transition-colors" />
                     <div className="text-center">
                       <p className="font-medium text-slate-700 group-hover:text-primary-700">Click to select a .tflite file</p>
-                      <p className="text-xs text-slate-400 mt-0.5">The file will be stored in Gumbo's model storage</p>
+                      <p className="text-xs text-slate-400 mt-0.5">The file will be stored in Jacana's model storage</p>
                     </div>
                   </button>
                 )}

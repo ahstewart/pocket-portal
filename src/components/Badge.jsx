@@ -7,15 +7,15 @@ export default function Badge({
   const baseStyles = 'inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold transition-colors';
   
   const variants = {
-    primary: 'bg-primary-100 text-primary-800',
-    success: 'bg-emerald-100 text-emerald-800',
-    warning: 'bg-amber-100 text-amber-800',
-    danger: 'bg-red-100 text-red-800',
-    slate: 'bg-slate-100 text-slate-800',
-    lime: 'bg-lime-100 text-lime-800',
-    amber: 'bg-amber-100 text-amber-800',
-    rose: 'bg-rose-100 text-rose-800',
+    primary:   'bg-primary-100 text-primary-800',
     secondary: 'bg-secondary-100 text-secondary-700',
+    accent:    'bg-accent-100 text-accent-700',
+    success:   'bg-emerald-100 text-emerald-800',
+    warning:   'bg-amber-100 text-amber-800',
+    danger:    'bg-red-100 text-red-800',
+    slate:     'bg-slate-100 text-slate-800',
+    lime:      'bg-lime-100 text-lime-800',
+    rose:      'bg-rose-100 text-rose-800',
   };
 
   return (
