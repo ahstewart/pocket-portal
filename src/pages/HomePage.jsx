@@ -5,7 +5,7 @@ import { ApiService } from '../api/client';
 import Button from '../components/Button';
 import LoadingCard from '../components/LoadingCard';
 import EmptyState from '../components/EmptyState';
-import WhyYouShouldCare from '../components/WhyYouShouldCare';
+import HowItWorks from '../components/HowItWorks';
 import { SparklesIcon } from '@heroicons/react/24/outline';
 
 export const HomePage = () => {
@@ -66,7 +66,7 @@ export const HomePage = () => {
       </section>
 
       {/* Why You Should Care Section */}
-      <WhyYouShouldCare />
+      <HowItWorks />
 
       {/* Featured Models Section */}
       <section>

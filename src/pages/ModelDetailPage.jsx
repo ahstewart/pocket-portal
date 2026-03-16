@@ -450,7 +450,7 @@ export const ModelDetailPage = () => {
                         </tr>
                       ) : (
                         /* Normal version row */
-                        <tr className="bg-white hover:bg-primary-50 transition-colors">
+                        <tr className="bg-white hover:bg-blue-50 transition-colors">
                           {/* Version name + downloads */}
                           <td className="px-4 py-3">
                             <span className="font-mono font-medium text-slate-900">

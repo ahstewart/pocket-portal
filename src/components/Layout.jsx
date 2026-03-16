@@ -1,7 +1,7 @@
 // src/components/Layout.jsx
 import React, { useState } from 'react';
 import { Link, useLocation, useNavigate, Outlet } from 'react-router-dom';
-import { PlusIcon, Bars3Icon, XMarkIcon, UserIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, Bars3Icon, XMarkIcon, UserIcon, ChevronDownIcon } from '@heroicons/react/24/outline';
 import Button from './Button';
 import { useAuth } from '../lib/authContext';
 
@@ -14,10 +14,13 @@ export const Layout = ({ children }) => {
 
   // Navigation links
   const navLinks = [
-    { label: 'Home',        path: '/',            exact: true  },
-    { label: 'Browse',      path: '/browse',      exact: false },
-    { label: 'Get Started', path: '/get-started', exact: false },
-    { label: 'Docs',        path: '/docs',        exact: false },
+    { label: 'Home',   path: '/',       exact: true  },
+    { label: 'Browse', path: '/browse', exact: false },
+  ];
+
+  const learnLinks = [
+    { label: 'Get Started', path: '/get-started' },
+    { label: 'Docs',        path: '/docs'        },
   ];
 
   const isActive = (path, exact) => {
@@ -68,6 +71,37 @@ export const Layout = ({ children }) => {
                   {link.label}
                 </Link>
               ))}
+
+              {/* Learn dropdown */}
+              <div className="relative group">
+                <button
+                  className={`flex items-center gap-1 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                    learnLinks.some((l) => isActive(l.path, false))
+                      ? 'text-primary-600 bg-primary-50'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                  }`}
+                >
+                  Learn
+                  <ChevronDownIcon className="h-3.5 w-3.5 transition-transform duration-200 group-hover:rotate-180" />
+                </button>
+                <div className="absolute left-0 top-full pt-1 hidden group-hover:block z-50">
+                  <div className="bg-white rounded-lg shadow-lg border border-slate-200 py-1 min-w-[140px]">
+                    {learnLinks.map((link) => (
+                      <Link
+                        key={link.path}
+                        to={link.path}
+                        className={`block px-4 py-2 text-sm font-medium transition-colors ${
+                          isActive(link.path, false)
+                            ? 'text-primary-600 bg-primary-50'
+                            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                        }`}
+                      >
+                        {link.label}
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* Right Side: CTA + Avatar */}
@@ -183,6 +217,25 @@ export const Layout = ({ children }) => {
                   {link.label}
                 </Link>
               ))}
+
+              {/* Learn section in mobile */}
+              <div className="pt-1">
+                <p className="px-4 py-1 text-xs font-semibold text-slate-400 uppercase tracking-wider">Learn</p>
+                {learnLinks.map((link) => (
+                  <Link
+                    key={link.path}
+                    to={link.path}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={`block px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                      isActive(link.path, false)
+                        ? 'text-primary-600 bg-primary-50'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                    }`}
+                  >
+                    {link.label}
+                  </Link>
+                ))}
+              </div>
               {!user && (
                 <>
                   <Link
