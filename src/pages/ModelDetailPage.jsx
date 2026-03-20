@@ -156,7 +156,10 @@ export const ModelDetailPage = () => {
     const newVersion = await ApiService.createModelVersion(id, {
       version_name: details.version_name,
       commit_sha: details.commit_sha,
-      assets: { tflite: details.tflite_url },
+      assets: {
+        tflite: details.tflite_url,
+        ...(details.tflite_files ? { tflite_files: details.tflite_files } : {}),
+      },
       changelog: details.changelog || null,
       license_type: 'unknown',
       is_commercial_safe: false,
@@ -188,7 +191,10 @@ export const ModelDetailPage = () => {
       const newVersion = await ApiService.createModelVersion(id, {
         version_name: pendingVersionDetails.version_name,
         commit_sha: pendingVersionDetails.commit_sha,
-        assets: { tflite: pendingVersionDetails.tflite_url },
+        assets: {
+          tflite: pendingVersionDetails.tflite_url,
+          ...(pendingVersionDetails.tflite_files ? { tflite_files: pendingVersionDetails.tflite_files } : {}),
+        },
         changelog: pendingVersionDetails.changelog || null,
         license_type: 'unknown',
         is_commercial_safe: false,

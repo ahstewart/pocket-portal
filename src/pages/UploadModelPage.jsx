@@ -39,6 +39,8 @@ const fetchHFTfliteFiles = async (hfModelId) => {
     }));
 };
 
+const getStem = (filename) => filename.split('/').pop().replace('.tflite', '');
+
 const formatBytes = (bytes) => {
   if (!bytes) return '';
   if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(1)} GB`;
@@ -107,7 +109,7 @@ export const UploadModelPage = () => {
   const [hfFiles, setHfFiles] = useState([]);
   const [loadingHfFiles, setLoadingHfFiles] = useState(false);
   const [hfFilesError, setHfFilesError] = useState(null);
-  const [selectedHfFile, setSelectedHfFile] = useState(null);
+  const [selectedHfFiles, setSelectedHfFiles] = useState([]);
   const [fileError, setFileError] = useState('');
 
   // ── Step 4: Pipeline ───────────────────────────────────────────────────────
@@ -124,8 +126,7 @@ export const UploadModelPage = () => {
     fetchHFTfliteFiles(meta.hf_model_id.trim())
       .then(files => {
         setHfFiles(files);
-        if (files.length === 1) setSelectedHfFile(files[0]);
-        else setSelectedHfFile(null);
+        setSelectedHfFiles(files); // Pre-select all by default
       })
       .catch(err => setHfFilesError(err.message))
       .finally(() => setLoadingHfFiles(false));
@@ -169,8 +170,8 @@ export const UploadModelPage = () => {
       setFileError('Please select a .tflite file to upload');
       return false;
     }
-    if (fileMode === 'hf' && !selectedHfFile) {
-      setFileError('Please select a model file from the list');
+    if (fileMode === 'hf' && selectedHfFiles.length === 0) {
+      setFileError('Please select at least one model file');
       return false;
     }
     setFileError('');
@@ -266,8 +267,8 @@ export const UploadModelPage = () => {
         fileSizeBytes = uploadedFile.size;
         isHostedByUs = true;
       } else {
-        tfliteUrl = selectedHfFile.url;
-        fileSizeBytes = selectedHfFile.size_bytes;
+        tfliteUrl = selectedHfFiles[0].url;
+        fileSizeBytes = selectedHfFiles.reduce((sum, f) => sum + (f.size_bytes || 0), 0);
       }
       advance('upload');
 
@@ -276,7 +277,12 @@ export const UploadModelPage = () => {
       const newVersion = await ApiService.createModelVersion(newModel.id, {
         version_name: version.version_name.trim(),
         commit_sha: generateShortId(),
-        assets: { tflite: tfliteUrl },
+        assets: {
+          tflite: tfliteUrl,
+          ...(fileMode === 'hf' && selectedHfFiles.length > 1
+            ? { tflite_files: Object.fromEntries(selectedHfFiles.map(f => [getStem(f.filename), f.url])) }
+            : {}),
+        },
         changelog: version.changelog.trim() || null,
         license_type: meta.license_type,
         is_commercial_safe: false,
@@ -627,23 +633,55 @@ export const UploadModelPage = () => {
                     No .tflite files found in <span className="font-mono font-medium">{meta.hf_model_id}</span>.
                     Try uploading a file instead.
                   </div>
+                ) : hfFiles.length === 1 ? (
+                  // Single file — show as read-only confirmation
+                  <div className="flex items-center gap-3 p-3.5 border border-primary-200 bg-primary-50 rounded-xl">
+                    <DocumentIcon className="h-5 w-5 text-primary-600 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-slate-800 truncate">{hfFiles[0].filename}</p>
+                      {hfFiles[0].size_bytes > 0 && <p className="text-xs text-slate-400">{formatBytes(hfFiles[0].size_bytes)}</p>}
+                    </div>
+                    <CheckCircleIcon className="h-5 w-5 text-primary-600 flex-shrink-0" />
+                  </div>
                 ) : (
+                  // Multiple files — checkbox list, all pre-selected
                   <div className="space-y-2">
-                    {hfFiles.map(f => (
-                      <button
-                        key={f.url}
-                        type="button"
-                        onClick={() => setSelectedHfFile(f)}
-                        className={`w-full flex items-center gap-3 p-3.5 border-2 rounded-xl text-left transition-all ${selectedHfFile?.url === f.url ? 'border-primary-500 bg-primary-50' : 'border-slate-200 hover:border-slate-300'}`}
-                      >
-                        <DocumentIcon className={`h-5 w-5 flex-shrink-0 ${selectedHfFile?.url === f.url ? 'text-primary-600' : 'text-slate-400'}`} />
-                        <div className="flex-1 min-w-0">
-                          <p className={`text-sm font-medium truncate ${selectedHfFile?.url === f.url ? 'text-primary-800' : 'text-slate-700'}`}>{f.filename}</p>
-                          {f.size_bytes > 0 && <p className="text-xs text-slate-400">{formatBytes(f.size_bytes)}</p>}
-                        </div>
-                        {selectedHfFile?.url === f.url && <CheckCircleIcon className="h-5 w-5 text-primary-600 flex-shrink-0" />}
-                      </button>
-                    ))}
+                    <p className="text-xs text-slate-500">
+                      {selectedHfFiles.length} of {hfFiles.length} selected
+                      {selectedHfFiles.length > 1 && ' — encoder/decoder model detected'}
+                    </p>
+                    {hfFiles.map(f => {
+                      const checked = selectedHfFiles.some(s => s.url === f.url);
+                      return (
+                        <button
+                          key={f.url}
+                          type="button"
+                          onClick={() => setSelectedHfFiles(prev =>
+                            prev.some(s => s.url === f.url)
+                              ? prev.filter(s => s.url !== f.url)
+                              : [...prev, f]
+                          )}
+                          className={`w-full flex items-center gap-3 p-3.5 border-2 rounded-xl text-left transition-all ${
+                            checked ? 'border-primary-500 bg-primary-50' : 'border-slate-200 hover:border-slate-300'
+                          }`}
+                        >
+                          <div className={`w-4 h-4 rounded border-2 flex-shrink-0 flex items-center justify-center transition-colors ${
+                            checked ? 'bg-primary-600 border-primary-600' : 'border-slate-400'
+                          }`}>
+                            {checked && (
+                              <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 10 8">
+                                <path d="M1 4l3 3 5-6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                              </svg>
+                            )}
+                          </div>
+                          <DocumentIcon className={`h-5 w-5 flex-shrink-0 ${checked ? 'text-primary-600' : 'text-slate-400'}`} />
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-sm font-medium truncate ${checked ? 'text-slate-800' : 'text-slate-500'}`}>{f.filename}</p>
+                            {f.size_bytes > 0 && <p className="text-xs text-slate-400">{formatBytes(f.size_bytes)}</p>}
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
               </div>

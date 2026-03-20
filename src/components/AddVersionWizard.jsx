@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { XMarkIcon, SparklesIcon, PencilSquareIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
+import { XMarkIcon, SparklesIcon, PencilSquareIcon, ArrowPathIcon, DocumentIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
 import Button from './Button';
 
 const generateShortId = () =>
@@ -19,18 +19,17 @@ const fetchHFTfliteFiles = async (hfModelId) => {
     }));
 };
 
+const getStem = (filename) => filename.split('/').pop().replace('.tflite', '');
+
 export const AddVersionWizard = ({ hfModelId, existingTfliteUrl, onCreateManual, onCreateAndGenerate, onCancel }) => {
   const [step, setStep] = useState('details');
-  const [details, setDetails] = useState({
-    version_name: '',
-    tflite_url: '',
-    changelog: '',
-  });
+  const [details, setDetails] = useState({ version_name: '', changelog: '' });
   const [errors, setErrors] = useState({});
   const [generating, setGenerating] = useState(false);
   const [generateError, setGenerateError] = useState(null);
 
   const [tfliteFiles, setTfliteFiles] = useState([]);
+  const [selectedFiles, setSelectedFiles] = useState([]);
   const [loadingFiles, setLoadingFiles] = useState(false);
   const [filesError, setFilesError] = useState(null);
 
@@ -40,19 +39,25 @@ export const AddVersionWizard = ({ hfModelId, existingTfliteUrl, onCreateManual,
     fetchHFTfliteFiles(hfModelId)
       .then(files => {
         setTfliteFiles(files);
-        // Auto-select if there's only one file
-        if (files.length === 1) {
-          setDetails(d => ({ ...d, tflite_url: files[0].url }));
-        }
+        // Pre-select all files by default
+        setSelectedFiles(files);
       })
       .catch(err => setFilesError(err.message))
       .finally(() => setLoadingFiles(false));
   }, [hfModelId]);
 
+  const toggleFile = (file) => {
+    setSelectedFiles(prev =>
+      prev.some(f => f.url === file.url)
+        ? prev.filter(f => f.url !== file.url)
+        : [...prev, file]
+    );
+  };
+
   const validate = () => {
     const e = {};
     if (!details.version_name.trim()) e.version_name = 'Version name is required';
-    if (hfModelId && !details.tflite_url) e.tflite_url = 'Please select a model file';
+    if (hfModelId && selectedFiles.length === 0) e.tflite = 'Please select at least one model file';
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -61,13 +66,23 @@ export const AddVersionWizard = ({ hfModelId, existingTfliteUrl, onCreateManual,
     if (validate()) setStep('pipeline-choice');
   };
 
-  // Attach an auto-generated commit SHA just before handing off to parent.
-  // For non-HF models, carry the inherited tflite URL so handlers can use it.
-  const withSha = () => ({
-    ...details,
-    tflite_url: hfModelId ? details.tflite_url : (existingTfliteUrl || ''),
-    commit_sha: generateShortId(),
-  });
+  // Build tflite_url and tflite_files from selected files, attach a commit SHA.
+  const withSha = () => {
+    const tflite_url = hfModelId
+      ? (selectedFiles[0]?.url || '')
+      : (existingTfliteUrl || '');
+
+    const tflite_files = hfModelId && selectedFiles.length > 1
+      ? Object.fromEntries(selectedFiles.map(f => [getStem(f.filename), f.url]))
+      : null;
+
+    return {
+      ...details,
+      tflite_url,
+      tflite_files,
+      commit_sha: generateShortId(),
+    };
+  };
 
   const handleCreateAndGenerate = async () => {
     setGenerating(true);
@@ -81,15 +96,14 @@ export const AddVersionWizard = ({ hfModelId, existingTfliteUrl, onCreateManual,
   };
 
   const renderModelFileField = () => {
-    if (!hfModelId) {
-      return null;
-    }
+    if (!hfModelId) return null;
 
     return (
       <div>
         <label className="block text-sm font-medium text-slate-700 mb-1">
-          Model File <span className="text-red-500">*</span>
+          Model File(s) <span className="text-red-500">*</span>
         </label>
+
         {loadingFiles ? (
           <div className="flex items-center gap-2 text-sm text-slate-500 py-2">
             <ArrowPathIcon className="h-4 w-4 animate-spin" />
@@ -101,21 +115,51 @@ export const AddVersionWizard = ({ hfModelId, existingTfliteUrl, onCreateManual,
           <p className="text-sm text-slate-500 italic py-1">
             No .tflite files found in this repository.
           </p>
+        ) : tfliteFiles.length === 1 ? (
+          // Single file — show as read-only confirmation
+          <div className="flex items-center gap-3 p-3 border border-primary-200 bg-primary-50 rounded-xl">
+            <DocumentIcon className="h-5 w-5 text-primary-600 flex-shrink-0" />
+            <p className="text-sm font-medium text-slate-800 truncate flex-1">{tfliteFiles[0].filename}</p>
+            <CheckCircleIcon className="h-5 w-5 text-primary-600 flex-shrink-0" />
+          </div>
         ) : (
-          <select
-            value={details.tflite_url}
-            onChange={e => setDetails({ ...details, tflite_url: e.target.value })}
-            className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 ${
-              errors.tflite_url ? 'border-red-400' : 'border-slate-300'
-            }`}
-          >
-            <option value="">Select a model file…</option>
-            {tfliteFiles.map(f => (
-              <option key={f.url} value={f.url}>{f.filename}</option>
-            ))}
-          </select>
+          // Multiple files — checkbox list, all pre-selected
+          <div className="space-y-2">
+            <p className="text-xs text-slate-500">
+              {selectedFiles.length} of {tfliteFiles.length} selected
+              {selectedFiles.length > 1 && ' — encoder/decoder model detected'}
+            </p>
+            {tfliteFiles.map(f => {
+              const checked = selectedFiles.some(s => s.url === f.url);
+              return (
+                <button
+                  key={f.url}
+                  type="button"
+                  onClick={() => toggleFile(f)}
+                  className={`w-full flex items-center gap-3 p-3 border-2 rounded-xl text-left transition-all ${
+                    checked ? 'border-primary-500 bg-primary-50' : 'border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  <div className={`w-4 h-4 rounded border-2 flex-shrink-0 flex items-center justify-center transition-colors ${
+                    checked ? 'bg-primary-600 border-primary-600' : 'border-slate-400'
+                  }`}>
+                    {checked && (
+                      <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 10 8">
+                        <path d="M1 4l3 3 5-6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    )}
+                  </div>
+                  <DocumentIcon className={`h-4 w-4 flex-shrink-0 ${checked ? 'text-primary-600' : 'text-slate-400'}`} />
+                  <span className={`text-sm truncate flex-1 ${checked ? 'text-slate-800 font-medium' : 'text-slate-500'}`}>
+                    {f.filename}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         )}
-        {errors.tflite_url && <p className="text-xs text-red-600 mt-1">{errors.tflite_url}</p>}
+
+        {errors.tflite && <p className="text-xs text-red-600 mt-1">{errors.tflite}</p>}
       </div>
     );
   };
