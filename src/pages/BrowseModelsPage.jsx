@@ -7,6 +7,7 @@ import FilterBar from '../components/FilterBar';
 import LoadingCard from '../components/LoadingCard';
 import EmptyState from '../components/EmptyState';
 import { FunnelIcon } from '@heroicons/react/24/outline';
+import { isTaskSupported } from '../lib/supportedTasks';
 
 const FILTER_SESSION_KEY = 'browse_filters';
 
@@ -28,6 +29,7 @@ export const BrowseModelsPage = () => {
   const [taskFilter, setTaskFilter] = useState(saved.taskFilter ?? []);
   const [hasVersionsOnly, setHasVersionsOnly] = useState(saved.hasVersionsOnly ?? false);
   const [statusFilter, setStatusFilter] = useState(saved.statusFilter ?? []);
+  const [appSupportFilter, setAppSupportFilter] = useState(saved.appSupportFilter ?? []);
   const [sortBy, setSortBy] = useState(saved.sortBy ?? 'newest');
   const [currentPage, setCurrentPage] = useState(saved.currentPage ?? 1);
   const itemsPerPage = 12;
@@ -43,7 +45,7 @@ export const BrowseModelsPage = () => {
   // Persist filter state for the session
   useEffect(() => {
     sessionStorage.setItem(FILTER_SESSION_KEY, JSON.stringify({
-      searchQuery, categoryFilter, taskFilter, hasVersionsOnly, statusFilter, sortBy, currentPage,
+      searchQuery, categoryFilter, taskFilter, hasVersionsOnly, statusFilter, appSupportFilter, sortBy, currentPage,
     }));
   }, [searchQuery, categoryFilter, taskFilter, hasVersionsOnly, sortBy, currentPage]);
 
@@ -66,7 +68,13 @@ export const BrowseModelsPage = () => {
       result = result.filter(m => (m.version_count ?? 0) >= 1);
     }
 
-    // Status filter (multi-select)
+    // App support filter (multi-select: 'supported' | 'unsupported')
+    if (appSupportFilter.length > 0 && appSupportFilter.length < 2) {
+      const wantSupported = appSupportFilter.includes('supported');
+      result = result.filter(m => isTaskSupported(m.task) === wantSupported);
+    }
+
+    // Pipeline status filter (multi-select)
     if (statusFilter.length > 0) {
       result = result.filter(m => statusFilter.includes(m.best_version_status ?? 'none'));
     }
@@ -81,7 +89,7 @@ export const BrowseModelsPage = () => {
     }
 
     // Sort
-    const STATUS_PRIORITY = { supported: 0, pending: 1, unsupported: 2 };
+    const STATUS_PRIORITY = { verified: 0, pending: 1, missing: 2 };
     switch (sortBy) {
       case 'newest':
         result.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
@@ -104,7 +112,7 @@ export const BrowseModelsPage = () => {
     }
 
     return result;
-  }, [models, searchQuery, categoryFilter, taskFilter, hasVersionsOnly, statusFilter, sortBy]);
+  }, [models, searchQuery, categoryFilter, taskFilter, hasVersionsOnly, statusFilter, appSupportFilter, sortBy]);
 
   // Get unique categories and tasks, sorted by model count descending
   const categories = [...new Set(models.map(m => m.category))]
@@ -201,14 +209,24 @@ export const BrowseModelsPage = () => {
       options: tasks.map(t => ({ label: t, value: t })),
     },
     {
+      id: 'appSupport',
+      label: 'App Support',
+      multi: true,
+      activeValue: appSupportFilter,
+      options: [
+        { label: 'Supported',   value: 'supported'   },
+        { label: 'Unsupported', value: 'unsupported' },
+      ],
+    },
+    {
       id: 'status',
       label: 'Pipeline Status',
       multi: true,
       activeValue: statusFilter,
       options: [
-        { label: 'Supported',   value: 'supported'   },
-        { label: 'Pending',     value: 'pending'     },
-        { label: 'Unsupported', value: 'unsupported' },
+        { label: 'Verified', value: 'verified' },
+        { label: 'Pending',  value: 'pending'  },
+        { label: 'Missing',  value: 'missing'  },
       ],
     },
     {
@@ -229,6 +247,8 @@ export const BrowseModelsPage = () => {
       setCategoryFilter(value ?? []);
     } else if (filterId === 'task') {
       setTaskFilter(value ?? []);
+    } else if (filterId === 'appSupport') {
+      setAppSupportFilter(value ?? []);
     } else if (filterId === 'status') {
       setStatusFilter(value);
     } else if (filterId === 'sort') {
@@ -269,7 +289,7 @@ export const BrowseModelsPage = () => {
             />
             Has versions
           </label>
-          {(searchQuery || categoryFilter.length > 0 || taskFilter.length > 0 || hasVersionsOnly || statusFilter.length > 0 || sortBy !== 'newest') && (
+          {(searchQuery || categoryFilter.length > 0 || taskFilter.length > 0 || hasVersionsOnly || appSupportFilter.length > 0 || statusFilter.length > 0 || sortBy !== 'newest') && (
             <Button
               variant="tertiary"
               size="sm"
@@ -278,6 +298,7 @@ export const BrowseModelsPage = () => {
                 setCategoryFilter([]);
                 setTaskFilter([]);
                 setHasVersionsOnly(false);
+                setAppSupportFilter([]);
                 setStatusFilter([]);
                 setSortBy('newest');
               }}
@@ -314,9 +335,9 @@ export const BrowseModelsPage = () => {
         </>
       ) : (
         <EmptyState
-          title={searchQuery || categoryFilter.length > 0 || taskFilter.length > 0 || hasVersionsOnly || statusFilter.length > 0 ? "No models found" : "No models available"}
+          title={searchQuery || categoryFilter.length > 0 || taskFilter.length > 0 || hasVersionsOnly || appSupportFilter.length > 0 || statusFilter.length > 0 ? "No models found" : "No models available"}
           description={
-            searchQuery || categoryFilter.length > 0 || taskFilter.length > 0 || hasVersionsOnly || statusFilter.length > 0
+            searchQuery || categoryFilter.length > 0 || taskFilter.length > 0 || hasVersionsOnly || appSupportFilter.length > 0 || statusFilter.length > 0
               ? "Try adjusting your search or filters"
               : "Check back later for new models"
           }

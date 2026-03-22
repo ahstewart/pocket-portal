@@ -20,19 +20,22 @@ import {
   XMarkIcon,
   LockClosedIcon,
   GlobeAltIcon,
+  DevicePhoneMobileIcon,
+  CodeBracketIcon,
 } from '@heroicons/react/24/outline';
+import { isTaskSupported } from '../lib/supportedTasks';
 import { StarIcon as StarSolidIcon } from '@heroicons/react/24/solid';
 
 const STATUS_BADGE = {
-  supported:   'secondary',
-  pending:     'accent',
-  unsupported: 'danger',
+  verified: 'secondary',
+  pending:  'accent',
+  missing:  'danger',
 };
 
 const STATUS_TOOLTIP = {
-  supported:   'Verified — the pipeline passed TFLite validation and is ready for on-device inference.',
-  pending:     'Pending — a pipeline exists but has not yet been verified against the TFLite model.',
-  unsupported: 'Unsupported — this version has no pipeline, or its pipeline was confirmed broken or rejected.',
+  verified: 'Verified — the pipeline passed TFLite validation and is ready for on-device inference.',
+  pending:  'Pending — a pipeline exists but has not yet been verified against the TFLite model.',
+  missing:  'Missing — this version has no pipeline, or pipeline generation was rejected for this model.',
 };
 
 export const ModelDetailPage = () => {
@@ -59,6 +62,7 @@ export const ModelDetailPage = () => {
 
   // Pipeline view modal
   const [viewPipelineVersion, setViewPipelineVersion] = useState(null);
+  const [pipelineTab, setPipelineTab] = useState('visual');
 
   // Pipeline edit modal
   const [editPipelineVersion, setEditPipelineVersion] = useState(null);
@@ -245,6 +249,32 @@ export const ModelDetailPage = () => {
           {backLabel}
         </Button>
 
+        {isTaskSupported(model.task) ? (
+          <div className="flex items-center gap-3 px-4 py-3 mb-4 bg-primary-50 border border-primary-200 rounded-xl">
+            <DevicePhoneMobileIcon className="h-5 w-5 text-primary-600 flex-shrink-0" />
+            <p className="text-sm text-slate-700">
+              Want to try this model?{' '}
+              <strong className="text-primary-700">Download the Jacana app</strong> — browse, download, and run AI models 100% on-device, no internet required after download.
+            </p>
+          </div>
+        ) : model.task ? (
+          <div className="flex items-center gap-3 px-4 py-3 mb-4 bg-amber-50 border border-amber-200 rounded-xl">
+            <CodeBracketIcon className="h-5 w-5 text-amber-600 flex-shrink-0" />
+            <p className="text-sm text-slate-700">
+              The <strong className="text-slate-900">{model.task}</strong> task is not yet supported by the Jacana app's inference engine.{' '}
+              <a
+                href="https://github.com/ahstewart/jacana-flutter"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-amber-700 font-medium underline hover:text-amber-800"
+              >
+                Submit a PR on GitHub
+              </a>{' '}
+              to add support for this task type.
+            </p>
+          </div>
+        ) : null}
+
         <div className="bg-white rounded-2xl border border-slate-200 shadow-card p-6 lg:p-8">
         <div className="flex flex-col lg:flex-row gap-8">
           {/* Model Info */}
@@ -411,7 +441,7 @@ export const ModelDetailPage = () => {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {versions.map((version) => {
-                  const isSupported     = version.status === 'supported';
+                  const isSupported     = version.status === 'verified';
                   const isGenerating    = generatingId === version.id;
                   const isDeleting      = deletingId === version.id;
                   const isDeleteConfirm = deleteConfirmId === version.id;
@@ -493,7 +523,7 @@ export const ModelDetailPage = () => {
                           {/* Pipeline link + last updated */}
                           <td className="px-4 py-3">
                             {(() => {
-                              const isFailure = version.status === 'unsupported';
+                              const isFailure = version.status === 'missing';
                               const isShowingReason = showReasonVersionId === version.id;
                               return (
                                 <div className="space-y-1">
@@ -542,7 +572,7 @@ export const ModelDetailPage = () => {
                                 <button
                                   onClick={() => handleRegenerate(version)}
                                   disabled={isSupported || isGenerating || generatingId !== null}
-                                  title={isSupported ? 'Cannot regenerate a supported version' : 'Regenerate pipeline with AI'}
+                                  title={isSupported ? 'Cannot regenerate a verified version' : 'Regenerate pipeline with AI'}
                                   className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                                 >
                                   <ArrowPathIcon className="h-4 w-4" />
@@ -550,7 +580,7 @@ export const ModelDetailPage = () => {
                                 <button
                                   onClick={() => setEditPipelineVersion(version)}
                                   disabled={isSupported || isGenerating}
-                                  title={isSupported ? 'Cannot edit a supported version' : 'Edit pipeline configuration'}
+                                  title={isSupported ? 'Cannot edit a verified version' : 'Edit pipeline configuration'}
                                   className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                                 >
                                   <PencilSquareIcon className="h-4 w-4" />
@@ -617,25 +647,43 @@ export const ModelDetailPage = () => {
       {viewPipelineVersion && (
         <div
           className="fixed inset-0 bg-black/50 flex items-start justify-center z-50 p-4 overflow-y-auto"
-          onClick={e => { if (e.target === e.currentTarget) setViewPipelineVersion(null); }}
+          onClick={e => { if (e.target === e.currentTarget) { setViewPipelineVersion(null); setPipelineTab('visual'); } }}
         >
           <div className="bg-white rounded-xl shadow-2xl max-w-3xl w-full mt-8 mb-8">
             <div className="flex items-center justify-between px-8 py-5 border-b border-slate-200">
-              <div>
-                <h2 className="text-lg font-bold text-slate-900">Pipeline Configuration</h2>
-                <p className="text-sm text-slate-500 mt-0.5 font-mono">v{viewPipelineVersion.version_name}</p>
+              <h2 className="text-lg font-bold text-slate-900">Pipeline Configuration</h2>
+              <div className="flex items-center gap-3">
+                {/* Visual / JSON toggle */}
+                <div className="flex border border-slate-200 rounded-lg overflow-hidden text-sm font-medium">
+                  {['visual', 'json'].map(tab => (
+                    <button
+                      key={tab}
+                      onClick={() => setPipelineTab(tab)}
+                      className={`px-3 py-1 capitalize transition-colors ${
+                        pipelineTab === tab
+                          ? 'bg-primary-600 text-white'
+                          : 'text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      {tab === 'json' ? 'JSON' : 'Visual'}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  onClick={() => { setViewPipelineVersion(null); setPipelineTab('visual'); }}
+                  className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors"
+                >
+                  <XMarkIcon className="h-5 w-5 text-slate-500" />
+                </button>
               </div>
-              <button
-                onClick={() => setViewPipelineVersion(null)}
-                className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors"
-              >
-                <XMarkIcon className="h-5 w-5 text-slate-500" />
-              </button>
             </div>
             <div className="p-8">
               <PipelineConfigViewer
                 pipelineSpec={viewPipelineVersion.pipeline_spec}
                 isEditable={false}
+                activeTab={pipelineTab}
+                onTabChange={setPipelineTab}
+                hideTabBar
               />
             </div>
           </div>

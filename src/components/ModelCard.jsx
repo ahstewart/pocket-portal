@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { ArrowDownTrayIcon, RectangleStackIcon, LockClosedIcon } from '@heroicons/react/24/outline';
 import { StarIcon as StarSolidIcon } from '@heroicons/react/24/solid';
 import Badge from './Badge';
+import { isTaskSupported } from '../lib/supportedTasks';
 
 export const ModelCard = ({ model, from = 'browse' }) => {
   const getCategoryColor = (category) => {
@@ -60,6 +61,23 @@ export const ModelCard = ({ model, from = 'browse' }) => {
                 <LockClosedIcon className="h-3 w-3" />
                 Private
               </span>
+            )}
+            {model.task && (
+              isTaskSupported(model.task) ? (
+                <span
+                  className="px-1.5 py-0.5 rounded text-xs font-semibold bg-green-100 text-green-700 cursor-help"
+                  title="This model's task is supported by the Jacana app — it can be downloaded and run on-device."
+                >
+                  Supported
+                </span>
+              ) : (
+                <span
+                  className="px-1.5 py-0.5 rounded text-xs font-semibold bg-slate-100 text-slate-500 cursor-help"
+                  title="The Jacana app does not yet have an inference pipeline for this task type. The model can still be browsed but cannot be run on-device."
+                >
+                  Unsupported
+                </span>
+              )
             )}
           </div>
         </div>

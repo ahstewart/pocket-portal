@@ -107,7 +107,7 @@ export const GetStartedPage = () => {
               Open the app (or browse here on the web) and explore the model catalogue. You can filter by task type — image classification, object detection, text generation, and more.
             </p>
             <p className="text-sm text-slate-500">
-              Look for models with a <span className="inline-flex items-center gap-1 text-green-700 font-medium"><CheckCircleIcon className="h-3.5 w-3.5" /> Supported</span> status — these have been validated and are ready to use.
+              Look for models with a <span className="inline-flex items-center gap-1 text-green-700 font-medium"><CheckCircleIcon className="h-3.5 w-3.5" /> Supported</span> task badge and a <strong>Verified</strong> pipeline status — these have been validated and are ready to use.
             </p>
           </Step>
 
@@ -147,8 +147,8 @@ export const GetStartedPage = () => {
         <div className="space-y-5">
           <Tip
             icon={CheckCircleIcon}
-            title='Filter by "Supported" status'
-            desc="Supported models have a validated pipeline and are most likely to work perfectly out of the box."
+            title='Filter by "Verified" pipeline status'
+            desc="Verified models have a validated pipeline and are most likely to work perfectly out of the box."
           />
           <Tip
             icon={WifiIcon}

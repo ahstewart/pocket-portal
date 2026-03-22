@@ -193,7 +193,7 @@ export const DocsPage = () => (
         />
         <FaqItem
           q="How accurate are the models?"
-          a="Accuracy varies by model. Check the version status — 'Supported' means the pipeline has been validated. Ratings from other users are also a good signal."
+          a="Accuracy varies by model. Check the version status — 'Verified' means the pipeline has been validated against the TFLite model. Ratings from other users are also a good signal."
         />
         <FaqItem
           q="Can I upload a model trained in PyTorch?"
