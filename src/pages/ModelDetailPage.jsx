@@ -254,7 +254,7 @@ export const ModelDetailPage = () => {
             <DevicePhoneMobileIcon className="h-5 w-5 text-primary-600 flex-shrink-0" />
             <p className="text-sm text-slate-700">
               Want to try this model?{' '}
-              <strong className="text-primary-700">Download the Jacana app</strong> — browse, download, and run AI models 100% on-device, no internet required after download.
+              <strong className="text-primary-700">Download the Jacana app</strong> — browse, download, and run AI models 100% on-device.
             </p>
           </div>
         ) : model.task ? (
